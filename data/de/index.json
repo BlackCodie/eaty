@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "built": "2026-08-14",
+  "shards": 96,
+  "pad": 3,
+  "count": 117150,
+  "source": "Open Food Facts",
+  "license": "ODbL-1.0",
+  "fields": [
+    "code",
+    "name",
+    "brand",
+    "cat",
+    "liquid",
+    "servG",
+    "pkgG",
+    "kcal",
+    "protein",
+    "carbs",
+    "fat",
+    "fiber",
+    "sugar",
+    "satfat",
+    "na_mg",
+    "nova",
+    "additives",
+    "nutriscore",
+    "flags"
+  ]
+}

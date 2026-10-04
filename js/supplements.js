@@ -41,6 +41,9 @@
     vitD: { factor: 0.025, unit: 'µg' },   // 1 IU cholecalciferol = 0.025 µg
     vitE: { factor: 0.67,  unit: 'mg' }    // 1 IU d-alpha-tocopherol = 0.67 mg
   };
+  // Synthetic vitamin E (dl-alpha-tocopherol, "all-rac") is half as active per IU.
+  // Labels show which: "d-" is natural, "dl-" is synthetic.
+  const IU_E_SYNTHETIC = 0.45;
 
   const isSupplement = f => !!(f && f.kind === 'supplement');
   App.isSupplement = isSupplement;
@@ -122,9 +125,12 @@
       </div>`;
 
     const iuToggle = key => `
-      <select name="u_${key}" style="width:84px;flex:none">
+      <select name="u_${key}" style="width:${key === 'vitE' ? 128 : 84}px;flex:none"
+              aria-label="${key === 'vitE' ? 'Vitamin E unit and form' : 'Unit'}">
         <option value="native">${IU[key].unit}</option>
-        <option value="iu">IU</option>
+        ${key === 'vitE'
+          ? '<option value="iu">IU (d-, natural)</option><option value="iu-syn">IU (dl-, synthetic)</option>'
+          : '<option value="iu">IU</option>'}
       </select>`;
 
     const s = UI.sheet({
@@ -192,8 +198,8 @@
         </div>
 
         <p class="tiny muted mt12" style="line-height:1.55">
-          IU conversions use the standard factors for the forms normally sold —
-          retinol, cholecalciferol (D3) and natural d-alpha-tocopherol. Supplements count
+          IU conversions: vitamin A as retinol (0.3 µg/IU), D3 (0.025 µg/IU), and vitamin E
+          natural d-alpha (0.67 mg/IU) or synthetic dl-alpha (0.45 mg/IU) — the label says which. Supplements count
           towards your micronutrient targets but are not given a food-quality grade.
         </p>
       `,
@@ -222,7 +228,11 @@
         if (existing && existing.iuFields) {
           Object.keys(existing.iuFields).forEach(k => {
             const sel = el.querySelector(`[name="u_${k}"]`);
-            if (sel) sel.value = 'iu';
+            const saved = existing.iuFields[k];
+            const inp = el.querySelector(`[name="p_${k}"]`);
+            if (sel) sel.value = (saved && saved.form) || 'iu';
+            // Show the IU figure the user typed, not the converted amount.
+            if (inp && saved) inp.value = typeof saved === 'object' ? saved.iu : saved;
           });
         }
 
@@ -235,9 +245,10 @@
           const iuFields = {};
           Nutrition.KEYS.forEach(k => {
             let v = Number(raw['p_' + k]) || 0;
-            if (IU[k] && raw['u_' + k] === 'iu' && v > 0) {
-              iuFields[k] = v;                     // remember what was typed
-              v = v * IU[k].factor;
+            const u = raw['u_' + k];
+            if (IU[k] && (u === 'iu' || u === 'iu-syn') && v > 0) {
+              iuFields[k] = { iu: v, form: u };    // remember what was typed
+              v = v * (u === 'iu-syn' ? IU_E_SYNTHETIC : IU[k].factor);
             }
             per[k] = v;
           });
@@ -347,7 +358,7 @@
   }
 
   window.Supplements = {
-    UNITS, IU, MEAL,
+    UNITS, IU, IU_E_SYNTHETIC, MEAL,
     all, stack, editor, take, takeAll, untake, takenOn, split,
     isSupplement, unitOf, doseLabel, perDose, build
   };

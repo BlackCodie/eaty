@@ -1,9 +1,12 @@
 {
-  "version": 2,
-  "built": "2026-08-14",
-  "shards": 96,
+  "version": 5,
+  "built": "2026-10-03",
+  "hash": "fnv1a-fmix32",
+  "shards": 128,
   "pad": 3,
-  "count": 117150,
+  "count": 387549,
+  "labelled": 260292,
+  "gzBytes": 15031585,
   "source": "Open Food Facts",
   "license": "ODbL-1.0",
   "fields": [
@@ -23,8 +26,13 @@
     "satfat",
     "na_mg",
     "nova",
-    "additives",
+    "additives_n",
     "nutriscore",
-    "flags"
+    "flags",
+    "type",
+    "additives",
+    "allergens",
+    "ingredients_n",
+    "extras"
   ]
 }

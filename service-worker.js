@@ -4,9 +4,14 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = 'eaty-v1.5.0';
+const VERSION = 'eaty-v2.1.0';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
+
+/* During local development every edit should show on the next reload, but
+   offline behaviour still needs to be testable — so on localhost everything is
+   network-first with the cache as fallback. Production is unaffected. */
+const DEV = ['localhost', '127.0.0.1', '[::1]'].indexOf(self.location.hostname) !== -1;
 
 const PRECACHE = [
   './',
@@ -16,14 +21,20 @@ const PRECACHE = [
   './manifest.json',
   './js/core.js',
   './js/store.js',
+  './js/offmap.js',
+  './js/additives.js',
   './js/foods.js',
   './js/foods-de.js',
   './js/foods-extra.js',
+  './js/foods-compounds.js',
   './js/nutrition.js',
   './js/quality.js',
+  './js/estimate.js',
+  './js/body.js',
   './js/charts.js',
   './js/ui.js',
   './js/barcode.js',
+
   './js/offapi.js',
   './js/fdcapi.js',
   './js/localpack.js',
@@ -31,6 +42,7 @@ const PRECACHE = [
   './js/foodsheet.js',
   './js/scanner.js',
   './js/supplements.js',
+  './js/product.js',
   './js/onboarding.js',
   './vendor/zxing.min.js',
   './js/views/today.js',
@@ -38,6 +50,7 @@ const PRECACHE = [
   './js/views/recipes.js',
   './js/views/plan.js',
   './js/views/trends.js',
+  './js/views/insights.js',
   './js/views/settings.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -82,6 +95,20 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;   // never touch cross-origin
 
+  if (DEV) {
+    event.respondWith(
+      fetch(req).then(res => {
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(RUNTIME).then(c => c.put(req, copy)).catch(() => {});
+        }
+        return res;
+      }).catch(() => caches.match(req).then(hit =>
+        hit || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error())))
+    );
+    return;
+  }
+
   // Navigations: try the network, fall back to the cached shell when offline.
   if (req.mode === 'navigate') {
     event.respondWith(
@@ -105,8 +132,24 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Product-pack shards are immutable for a given build — serve them straight
-  // from the cache with no revalidation, so a lookup costs nothing on mobile.
+  // The pack index is how the app learns a newer pack exists, so it is always
+  // asked for fresh and only served from cache when offline.
+  if (url.pathname.endsWith('/data/de/index.json')) {
+    event.respondWith(
+      fetch(req).then(res => {
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(SHELL).then(c => c.put('./data/de/index.json', copy)).catch(() => {});
+        }
+        return res;
+      }).catch(() => caches.match('./data/de/index.json'))
+    );
+    return;
+  }
+
+  // Shards and the alternatives index are versioned by the pack's build date in
+  // their URL, so a cached copy can be trusted forever — no revalidation, and a
+  // lookup costs nothing on mobile data.
   if (url.pathname.includes('/data/de/') && url.pathname.endsWith('.json')) {
     event.respondWith(
       caches.match(req).then(hit => hit || fetch(req).then(res => {

@@ -6,27 +6,73 @@
 
   const host = () => App.$('#sheet-host');
   const stack = [];
+  let sheetSeq = 0;
+
+  /* While any sheet is open the page behind it is inert: not focusable, not
+     clickable, and hidden from VoiceOver — which is what aria-modal promises. */
+  const BACKGROUND = ['#appbar', '#views', '#tabbar', '#orb'];
+  function syncInert() {
+    const on = stack.length > 0;
+    BACKGROUND.forEach(sel => {
+      const el = App.$(sel);
+      if (!el) return;
+      if (on) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+    });
+    // Only the top sheet is interactive when several are stacked.
+    stack.forEach((api, i) => {
+      if (i === stack.length - 1) api.el.removeAttribute('inert');
+      else api.el.setAttribute('inert', '');
+    });
+  }
+
+  const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), ' +
+                    'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  document.addEventListener('keydown', ev => {
+    const top = stack[stack.length - 1];
+    if (!top) return;
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      top.close();
+      return;
+    }
+    if (ev.key !== 'Tab') return;
+    const items = Array.from(top.sheetEl.querySelectorAll(FOCUSABLE))
+      .filter(el => el.offsetParent !== null || el === document.activeElement);
+    if (!items.length) { ev.preventDefault(); return; }
+    const first = items[0], last = items[items.length - 1];
+    if (ev.shiftKey && (document.activeElement === first || document.activeElement === top.sheetEl)) {
+      ev.preventDefault(); last.focus();
+    } else if (!ev.shiftKey && document.activeElement === last) {
+      ev.preventDefault(); first.focus();
+    }
+  });
 
   /* ---------------------------------------------------------- Bottom sheet */
   /**
-   * UI.sheet({ title, subtitle, body, footer, full, headerRight, onOpen, onClose,
+   * UI.sheet({ title, subtitle, body, footer, full, cls, headerRight, onOpen, onClose,
    *            dismissible })
    * Returns { el, close, setBody, setFooter, setTitle }.
    */
   function sheet(cfg) {
     const o = Object.assign({ dismissible: true, full: false }, cfg);
 
+    const titleId = 'sheet-title-' + (++sheetSeq);
+    // Remember what had focus so it can be given back when the sheet closes.
+    const opener = document.activeElement;
+
     const wrap = document.createElement('div');
     wrap.className = 'sheet-layer';
     wrap.style.cssText = 'position:absolute;inset:0;pointer-events:none';
     wrap.innerHTML =
       `<div class="scrim" data-sheet-scrim></div>
-       <div class="sheet${o.full ? ' full' : ''}" role="dialog" aria-modal="true">
+       <div class="sheet${o.full ? ' full' : ''}${o.cls ? ' ' + o.cls : ''}" role="dialog" aria-modal="true" tabindex="-1"
+            aria-labelledby="${titleId}">
          <div class="sheet-grip" data-sheet-grip><i></i></div>
          <div class="sheet-head">
            <div class="grow">
-             <h2>${App.esc(o.title || '')}</h2>
-             ${o.subtitle ? `<p class="sub">${o.subtitle}</p>` : ''}
+             <h2 id="${titleId}">${App.esc(o.title || '')}</h2>
+             ${o.subtitle ? `<p class="sub">${App.esc(o.subtitle)}</p>` : ''}
            </div>
            ${o.headerRight || ''}
            <button class="x" type="button" data-sheet-x aria-label="Close">${App.icon('close')}</button>
@@ -53,7 +99,7 @@
           p = document.createElement('p'); p.className = 'sub';
           wrap.querySelector('.sheet-head .grow').appendChild(p);
         }
-        p.innerHTML = t;
+        p.textContent = t;
       },
       setBody(html) { bodyEl.innerHTML = html; },
       setFooter(html) { if (footEl) footEl.innerHTML = html; }
@@ -69,6 +115,14 @@
         wrap.remove();
         if (!stack.length) host().style.pointerEvents = 'none';
       }, 340);
+      syncInert();
+      const next = stack[stack.length - 1];
+      if (opener && opener.isConnected && typeof opener.focus === 'function' &&
+          (!next || next.el.contains(opener))) {
+        try { opener.focus({ preventScroll: true }); } catch (_) {}
+      } else if (next) {
+        next.sheetEl.focus({ preventScroll: true });
+      }
       if (o.onClose) { try { o.onClose(result); } catch (e) { console.error(e); } }
     }
 
@@ -102,7 +156,13 @@
     grip.addEventListener('pointercancel', endDrag);
 
     stack.push(api);
-    App.raf(() => wrap.classList.add('sheet-open'));
+    syncInert();
+    App.raf(() => {
+      wrap.classList.add('sheet-open');
+      // Focus the dialog itself rather than its first input, so VoiceOver reads
+      // the title first and the iOS keyboard does not jump up uninvited.
+      try { sheetEl.focus({ preventScroll: true }); } catch (_) {}
+    });
     if (o.onOpen) App.raf(() => { try { o.onOpen(wrap); } catch (e) { console.error(e); } });
     App.haptic('light');
     return api;

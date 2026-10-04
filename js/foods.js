@@ -18,8 +18,16 @@
   const KEYS = [
     'kcal','protein','carbs','fat','fiber','sugar','satfat','chol','water',
     'vitA','b1','b2','b3','b5','b6','b9','b12','vitC','vitD','vitE','vitK',
-    'ca','fe','mg','k','na','zn','se','p'
+    'ca','fe','mg','k','na','zn','se','p',
+    // Physiologically active compounds (not in the positional rows below;
+    // filled per food by js/foods-compounds.js). Units: iodine ug, omega3 g,
+    // epadha mg, caffeine mg, alcohol g ethanol, transfat g, gl glycemic-load
+    // units, isoflavones mg, nitrate mg, freesugar g, glycyrrhizin mg.
+    'iodine','omega3','epadha','caffeine','alcohol','transfat','gl',
+    'isoflavones','nitrate','freesugar','glycyrrhizin'
   ];
+  /** How many values each positional row carries (the classic 29). */
+  const ROW_KEYS = 29;
 
   const CATS = [
     'Dairy & Eggs', 'Meat & Poultry', 'Fish & Seafood', 'Grains & Bread',
@@ -217,11 +225,11 @@
 
   function buildFood(row) {
     const [name, cat, vals, servings, unit, aliases] = row;
-    if (!Array.isArray(vals) || vals.length !== KEYS.length) {
+    if (!Array.isArray(vals) || vals.length !== ROW_KEYS) {
       console.warn('[foods] bad row length for "' + name + '":', vals && vals.length);
     }
     const n = {};
-    KEYS.forEach((k, i) => { n[k] = Number(vals[i]) || 0; });
+    KEYS.forEach((k, i) => { n[k] = i < ROW_KEYS ? (Number(vals[i]) || 0) : 0; });
 
     let id = 'f-' + slug(name);
     if (seen[id]) id += '-' + (++seen[id]); else seen[id] = 1;
@@ -237,8 +245,9 @@
       builtin: true
     };
     // Always offer a plain 100 g / 100 ml option plus a 1 g/ml unit.
-    food.servings.push({ label: '100 ' + food.unit, g: 100 });
-    food.servings.push({ label: '1 ' + food.unit, g: 1 });
+    [['100 ' + food.unit, 100], ['1 ' + food.unit, 1]].forEach(([label, g]) => {
+      if (!food.servings.some(s => s.label === label)) food.servings.push({ label, g });
+    });
 
     FOODS.push(food);
     BY_ID[id] = food;
@@ -283,10 +292,21 @@
     return s;
   }
 
+  /** Merge extra nutrient values onto existing foods: { id: { key: value } }. */
+  function enrich(map) {
+    Object.keys(map || {}).forEach(id => {
+      const f = BY_ID[id];
+      if (!f) { console.warn('[foods] compounds for unknown id:', id); return; }
+      Object.keys(map[id]).forEach(k => { f.n[k] = Number(map[id][k]) || 0; });
+    });
+  }
+
   const FoodDB = window.FoodDB = {
     KEYS,
     CATS,
     extend,
+    enrich,
+    ROW_KEYS,
     all: () => FOODS,
     byId: id => BY_ID[id] || null,
     count: () => FOODS.length,

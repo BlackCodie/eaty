@@ -8,8 +8,9 @@
 
   App.views.today = {
     title: () => 'Today',
-    sub: () => App.date.label(App.date.today()),
-    actions: () => `<button class="appbar-btn" type="button" data-act="open-settings" aria-label="Settings">${App.icon('gear')}</button>`,
+    sub: () => { const d = App.date.today(); return App.date.dowLong(d) + ', ' + App.date.short(d); },
+    actions: () => `<button class="appbar-btn" type="button" data-act="open-settings" aria-label="Settings">${App.icon('gear')}</button>
+      <button class="appbar-btn accent" type="button" data-act="add-food-now" aria-label="Add food">${App.icon('plus')}</button>`,
 
     async render(el) {
       const today = App.date.today();
@@ -56,6 +57,9 @@
 
       const latestWeight = weights.length ? weights[weights.length - 1] : null;
 
+      /* ---- setup checklist: features that matter but are easy to miss */
+      const setup = await setupSteps();
+
       /* ---- daily supplement stack */
       const [suppStack, suppTaken] = await Promise.all([
         Supplements.stack(),
@@ -72,6 +76,20 @@
         const f = e.refId ? App.food(e.refId) : null;
         return f || null;
       });
+
+      /* ---- what today's food is doing physiologically */
+      const body = Body.forDay(entries, e => (e.refId ? App.food(e.refId) : null), p);
+      const RANK = { warn: 0, caution: 1, good: 2, info: 3 };
+      const bodyTop = body.items.filter(i => i.tone !== 'info')
+        .sort((a, b) => RANK[a.tone] - RANK[b.tone]).slice(0, 4);
+      const bodyRow = i => {
+        const meta = Body.SYSTEMS[i.system] || { icon: 'info' };
+        return `<div class="row tone-${i.tone}" style="gap:11px;padding:7px 0">
+          <span class="fx-ic" style="width:30px;height:30px;border-radius:10px">${App.icon(meta.icon)}</span>
+          <span class="grow" style="font-size:14px;font-weight:600">${App.esc(i.label)}</span>
+          <span class="num" style="font-size:13.5px;font-weight:700;color:var(--tone)">${App.n(i.value, i.value >= 10 ? 0 : 1)}${i.unit ? ' ' + i.unit : ''}</span>
+        </div>`;
+      };
 
       /* ---- micronutrient completion */
       const tracked = Nutrition.MICROS.filter(m => !m.limit);
@@ -125,6 +143,22 @@
             </div>
           </div>` : ''}
 
+        ${setup.show ? `
+          <div class="card flush">
+            <div class="meal-head">
+              <div class="ic">${App.icon('sparkle')}</div>
+              <h3>Get the most out of Eaty</h3>
+              <span class="kc">${setup.done}/${setup.steps.length}</span>
+              <button class="icon-btn" type="button" data-act="setup-dismiss" aria-label="Hide checklist"
+                      style="width:30px;height:30px">${App.icon('close')}</button>
+            </div>
+            <div class="list">${setup.steps.map(st => `
+              <button class="shop-item${st.done ? ' done' : ''}" type="button" data-act="${st.act}" ${st.done ? 'disabled' : ''}>
+                <span class="shop-box">${App.icon('check')}</span>
+                <span class="si-main"><b>${st.title}</b><small>${st.sub}</small></span>
+              </button>`).join('')}</div>
+          </div>` : ''}
+
         <!-- Calories hero -->
         <div class="card glow">
           <div class="row" style="gap:16px;align-items:center">
@@ -164,6 +198,16 @@
             <div class="tx"><b>${latestWeight ? App.n(latestWeight.kg, 1) : '—'}</b><small>${latestWeight ? 'kg · tap to log' : 'log weight'}</small></div>
           </button>
         </div>
+
+        <!-- Body today -->
+        ${entries.length ? `
+        <button class="card press" type="button" data-act="go-insights" style="text-align:left;width:100%;display:block">
+          <div class="card-head" style="margin-bottom:8px">
+            <h2>Your body today</h2>
+            <span class="lnk">Insights${App.icon('right')}</span>
+          </div>
+          ${bodyTop.length ? bodyTop.map(bodyRow).join('') : '<p class="tiny muted">Nothing notable yet.</p>'}
+        </button>` : ''}
 
         <!-- Nutrition score -->
         <div class="card">
@@ -345,6 +389,37 @@
     }
   };
 
+  /** Checklist state. Each step ticks itself off from real app state. */
+  async function setupSteps() {
+    const s = App.state.settings || {};
+    if (s.setupDismissed) return { show: false, steps: [], done: 0 };
+    if (App.state.packSaved === undefined || App.state.packSaved === false) {
+      try { App.state.packSaved = await LocalPack.isDownloaded(); } catch (_) { App.state.packSaved = false; }
+    }
+    const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator.standalone === true;
+    const supps = await Supplements.all();
+    let packLine = 'German supermarket products · best on Wi-Fi';
+    try {
+      const m = await LocalPack.info();
+      if (m && m.count) packLine = Math.round(m.count / 1000) + ',000 German products' +
+        (m.gzBytes ? ' · about ' + Math.round(m.gzBytes / 1048576) + ' MB' : '') + ', best on Wi-Fi';
+    } catch (_) {}
+    const steps = [
+      { act: 'setup-pack', done: !!App.state.packSaved,
+        title: 'Save the product pack for offline scanning',
+        sub: packLine },
+      { act: 'supp-manage', done: supps.length > 0,
+        title: 'Add the supplements you take',
+        sub: 'Log your whole stack in one tap each day' },
+      { act: 'open-install', done: standalone,
+        title: 'Put Eaty on your Home Screen',
+        sub: 'Full screen, offline, and storage the system will not sweep' }
+    ];
+    const done = steps.filter(x => x.done).length;
+    return { show: done < steps.length, steps, done };
+  }
+
   /** Grade chip from a bare score (Quality.gradeFor has no score field). */
   function pillFor(score) {
     return UI.gradePill(Object.assign({ score: Math.round(score) }, Quality.gradeFor(score)), true);
@@ -375,6 +450,23 @@
 
   /* ------------------------------------------------------------- actions */
   App.act({
+    async 'setup-dismiss'() {
+      App.state.settings = await Data.saveSettings({ setupDismissed: true });
+      App.refresh();
+    },
+    async 'setup-pack'() {
+      const t = UI.toast('Saving the product pack…');
+      try {
+        const r = await LocalPack.download();
+        App.state.packSaved = true;
+        t.close();
+        UI.toast('Pack saved — ' + (r.bytes / 1048576).toFixed(1) + ' MB. Scanning now works offline.', 'ok');
+      } catch (e) {
+        t.close();
+        UI.toast('Could not save the pack: ' + e.message, 'err');
+      }
+      App.refresh();
+    },
     async 'backup-now'() {
       await App.exportBackup(false);
       App.state.settings = await Data.saveSettings({ lastBackup: Date.now() });
@@ -390,6 +482,7 @@
     },
     'go-diary': () => App.go('diary'),
     'go-trends': () => App.go('trends'),
+    'go-insights': () => App.go('insights', { exact: true }),
     'add-to-meal': el => FoodSheet.open({ mode: 'diary', date: App.date.today(), meal: el.dataset.meal }),
 
     async 'water'(el) {

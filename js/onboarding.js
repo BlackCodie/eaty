@@ -29,14 +29,15 @@
                         box-shadow:0 20px 50px -16px rgba(16,185,129,.75);margin-bottom:22px">
               <svg viewBox="0 0 24 24" width="46" height="46"><use href="#i-leaf"/></svg></div>
             <h2>Welcome to Eaty</h2>
-            <p class="lede" style="max-width:32ch">A complete nutrition tracker that runs entirely on your
-              iPhone. No account, no server — your food diary never leaves this device.</p>
+            <p class="lede" style="max-width:33ch">Scan any food and see what it really is — and what it does
+              to your body. No account, no server: your diary never leaves this iPhone.</p>
           </div>
           <div class="stack" style="gap:10px">
             ${[
-              ['flame', 'Calories and macros', 'Rings, targets and a daily budget that adapts to your training'],
-              ['leaf', 'Vitamins and minerals', '20 micronutrients tracked against your reference intakes'],
-              ['recipes', 'Recipes and meal plans', 'Build once, log in a tap, and generate a shopping list']
+              ['barcode', 'Scan anything', '387,000 German supermarket products offline, millions more online'],
+              ['star', 'Eaty Score', 'How good a product really is: nutrition, additive risk, processing, ingredients'],
+              ['pulse', 'What it does to your body', 'Hormones, blood sugar, heart, gut and sleep — with the evidence'],
+              ['leaf', 'Every nutrient', '21 vitamins and minerals plus caffeine, omega-3, nitrate and more']
             ].map(([ic, t, d]) => `<div class="card" style="display:flex;gap:13px;align-items:center;padding:13px 14px">
               <span style="flex:none;width:38px;height:38px;border-radius:12px;background:var(--brand-dim);
                            color:var(--brand);display:grid;place-items:center">${App.icon(ic)}</span>

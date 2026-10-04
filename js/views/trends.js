@@ -98,9 +98,18 @@
       }));
       const scoreLine = series.map(s => ({ x: App.date.short(s.date), y: s.score }));
 
+      // Calorie-weighted food quality per day, from the same grades the food screens show.
+      const qualityLine = days.map(d => {
+        const rec = byDate[d];
+        const q = rec ? Quality.rateDay(rec.entries, e => (e.refId ? App.food(e.refId) : null)) : null;
+        return { x: App.date.short(d), y: q ? q.score : null };
+      });
+      const qVals = qualityLine.filter(p => p.y !== null).map(p => p.y);
+      const avgQuality = qVals.length ? Math.round(qVals.reduce((a, b) => a + b, 0) / qVals.length) : null;
+
       const hitProtein = loggedDays.filter(s => s.protein >= t.protein).length;
-      const totalBurn = workouts.filter(w => w.date >= from).reduce((s, w) => s + (w.kcal || 0), 0);
-      const workoutDays = new Set(workouts.filter(w => w.date >= from).map(w => w.date)).size;
+      const totalBurn = workouts.reduce((s, w) => s + (w.kcal || 0), 0);
+      const workoutDays = new Set(workouts.map(w => w.date)).size;   // already limited to the window
 
       el.innerHTML = `
       <div class="stack">
@@ -176,6 +185,13 @@
           <div class="card-head"><h2>Nutrition score</h2>
             <span class="sub">avg ${Math.round(avgScore)}/100</span></div>
           ${Charts.line(scoreLine, { color: 'var(--fiber)', height: 160, minY: 0, maxY: 100, goal: 75, goalLabel: 'Good', fmt: v => Math.round(v) })}
+        </div>
+
+        <!-- Food quality -->
+        <div class="card">
+          <div class="card-head"><h2>Food quality</h2>
+            <span class="sub">${avgQuality !== null ? 'avg ' + avgQuality + '/100 · ' + Quality.gradeFor(avgQuality).grade : 'no rated days yet'}</span></div>
+          ${Charts.line(qualityLine, { color: 'var(--brand)', height: 160, minY: 0, maxY: 100, goal: 65, goalLabel: 'B', fmt: v => Math.round(v) })}
         </div>
 
         <!-- Training -->

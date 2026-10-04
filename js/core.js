@@ -5,7 +5,7 @@
   'use strict';
 
   const App = window.App = {
-    version: '1.0.0',
+    version: '2.1.0',
     state: {
       ready: false,
       tab: 'today',
@@ -41,6 +41,15 @@
     const t = document.createElement('template');
     t.innerHTML = html.trim();
     return t.content;
+  };
+
+  /**
+   * Recipe photos are stored as data URLs. Anything else in an image field —
+   * from a hand-edited or shared backup — is dropped rather than put in a src.
+   */
+  App.safeImg = function (src) {
+    const s = String(src || '');
+    return /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(s) ? s : '';
   };
 
   App.icon = (name, cls) =>

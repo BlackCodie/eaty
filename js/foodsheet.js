@@ -42,6 +42,21 @@
     };
   };
 
+  /**
+   * A recipe is rated the way a day is: each ingredient's own grade, weighted
+   * by the calories it contributes. So a salad drowned in dressing grades like
+   * the dressing, and processing in the ingredients still counts.
+   */
+  App.recipeQuality = function (recipe) {
+    const entries = ((recipe && recipe.ingredients) || []).map(i => {
+      const src = i.refId ? App.food(i.refId) : null;
+      const per100 = (src && src.n) || i.n100 || {};
+      return { name: i.name, n: Nutrition.scale(per100, i.grams || 0),
+               _food: src || { name: i.name, n: per100, declared: null } };
+    });
+    return Quality.rateDay(entries, e => e._food);
+  };
+
   /* ------------------------------------------------------- entry building */
 
   /** Does this food carry real micronutrient data, or only a pack label? */
@@ -368,6 +383,10 @@
   /* =========================================================== PORTION UI */
 
   async function openPortion(source, o, parentSheet) {
+    // Foods open the full product page; recipes and supplements keep this sheet.
+    if (source.kind === 'food' && window.Product && !(App.isSupplement && App.isSupplement(source.data))) {
+      return Product.open(source.data, o, parentSheet);
+    }
     const isRecipe = source.kind === 'recipe';
     const data = source.data;
     const refId = (isRecipe ? 'recipe:' : 'food:') + data.id;
@@ -384,7 +403,7 @@
 
     const s = UI.sheet({
       title: data.name,
-      subtitle: isRecipe ? 'Recipe' : App.esc(data.cat || ''),
+      subtitle: isRecipe ? 'Recipe' : (data.cat || ''),
       headerRight: `<button class="icon-btn${fav ? ' accent' : ''}" type="button" id="pt-fav" aria-label="Favourite">${App.icon('star')}</button>`,
       body: `
         <div class="field">
@@ -414,7 +433,8 @@
 
         <div class="card mt16" id="pt-preview"></div>
         ${!isRecipe ? `<div class="section-title mt16 mb8" id="pt-quality-title">Food quality</div>
-          <div class="card" id="pt-quality"></div>` : ''}
+          <div class="card" id="pt-quality"></div>
+          <div id="pt-alts"></div>` : ''}
         <div class="mt12" id="pt-micros"></div>
       `,
       footer: o.batch
@@ -434,6 +454,8 @@
           const card = UI.qualityCard(data);
           if (card) {
             qBox.innerHTML = card;
+            // Packaged products get a "better choice" list, like a shelf scanner.
+            if (data.barcode && !App.isSupplement(data)) showAlternatives(el);
           } else {
             qBox.remove();
             const t = el.querySelector('#pt-quality-title');
@@ -533,6 +555,33 @@
           App.haptic('light');
           UI.toast(now ? 'Added to favourites' : 'Removed from favourites');
         });
+
+        async function showAlternatives(root) {
+          const box = root.querySelector('#pt-alts');
+          if (!box) return;
+          let alts = [];
+          try { alts = await LocalPack.alternatives(data, 4); } catch (_) {}
+          if (!alts.length || !box.isConnected) return;
+          box.innerHTML = `
+            <div class="section-title mt16 mb8">Better choices · ${App.esc(alts[0].basis)}</div>
+            <div class="card flush"><div class="list">${alts.map((a, i) => {
+              const sv = a.food.servings[0];
+              return `<button class="list-item" type="button" data-alt="${i}">
+                ${UI.gradePill(a.rating)}
+                <div class="li-main">
+                  <div class="li-title">${App.esc(a.food.name)}</div>
+                  <div class="li-sub">${a.rating.score}/100 · ${UI.macroLine(Nutrition.scale(a.food.n, 100))} per 100 ${App.esc(a.food.unit)}</div>
+                </div>
+                ${App.icon('right', 'li-chev')}
+              </button>`;
+            }).join('')}</div></div>`;
+          box.querySelectorAll('[data-alt]').forEach(btn => btn.addEventListener('click', async () => {
+            const alt = alts[Number(btn.dataset.alt)].food;
+            try { await OFF.save(alt); } catch (_) {}
+            s.close();
+            setTimeout(() => openPortion({ kind: 'food', data: alt }, o, parentSheet), 220);
+          }));
+        }
 
         async function commit(scanAgain) {
           const sv = servings[servIdx];
@@ -766,6 +815,13 @@
             builtin: false,
             updated: Date.now()
           };
+          // A scanned product completed by hand keeps what the database already
+          // knew about it — additives, allergens, processing — so it scores fully.
+          if (seed && !seed.builtin) {
+            ['brand', 'image', 'nova', 'additives', 'additiveCodes', 'allergens', 'flags', 'ingredientsN',
+             'ingredientsText', 'nutriscore', 'type', 'tags', 'vegan', 'vegetarian', 'palmOilFree']
+              .forEach(k => { if (seed[k] !== undefined && food[k] === undefined) food[k] = seed[k]; });
+          }
           await Data.saveFood(food);
           App.state.customFoods = await Data.customFoods();
           App.haptic('ok');

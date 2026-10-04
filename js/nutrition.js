@@ -29,6 +29,7 @@
     { k: 'zn', label: 'Zinc',       unit: 'mg', group: 'mineral', rda: p => p.sex === 'female' ? 8 : 11 },
     { k: 'se', label: 'Selenium',   unit: 'µg', group: 'mineral', rda: () => 55 },
     { k: 'p',  label: 'Phosphorus', unit: 'mg', group: 'mineral', rda: () => 700 },
+    { k: 'iodine', label: 'Iodine', unit: 'µg', group: 'mineral', rda: () => 150 },
     { k: 'na', label: 'Sodium',     unit: 'mg', group: 'mineral', rda: () => 2300, limit: true }
   ];
 
@@ -38,6 +39,21 @@
     { k: 'satfat', label: 'Saturated fat', unit: 'g', group: 'other', limit: true },
     { k: 'chol',   label: 'Cholesterol', unit: 'mg', group: 'other', limit: true },
     { k: 'water',  label: 'Water (food)', unit: 'g', group: 'other' }
+  ];
+
+  /* Physiologically active compounds (js/foods-compounds.js, js/body.js).
+     target: a daily amount to reach; limit: a daily amount to stay under. */
+  const COMPOUNDS = [
+    { k: 'epadha',      label: 'Omega-3 EPA+DHA', unit: 'mg', target: 250 },
+    { k: 'omega3',      label: 'Omega-3 total',   unit: 'g',  target: 1.6 },
+    { k: 'nitrate',     label: 'Dietary nitrate', unit: 'mg', target: 300 },
+    { k: 'freesugar',   label: 'Free sugars',     unit: 'g',  limit: 50 },
+    { k: 'caffeine',    label: 'Caffeine',        unit: 'mg', limit: 400 },
+    { k: 'alcohol',     label: 'Alcohol',         unit: 'g',  limit: 0 },
+    { k: 'transfat',    label: 'Trans fat',       unit: 'g',  limit: 2 },
+    { k: 'gl',          label: 'Glycemic load',   unit: '',   limit: 100 },
+    { k: 'isoflavones', label: 'Soy isoflavones', unit: 'mg' },
+    { k: 'glycyrrhizin', label: 'Glycyrrhizin',   unit: 'mg', limit: 100 }
   ];
 
   const MACROS = [
@@ -288,7 +304,7 @@
   }
 
   window.Nutrition = {
-    KEYS, MICROS, OTHER, MACROS, ACTIVITY, GOALS, EXERCISES,
+    KEYS, MICROS, OTHER, COMPOUNDS, MACROS, ACTIVITY, GOALS, EXERCISES,
     empty, scale, mul, add, sum, kcalFromMacros, microCoverage,
     bmr, tdee, bmi, targets, score, scoreLabel, burn,
     micro: k => MICROS.find(m => m.k === k),

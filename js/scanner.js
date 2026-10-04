@@ -236,17 +236,23 @@
 
     // 1. The bundled German supermarket pack — instant, and works with no
     //    signal, which is the normal state of affairs inside a supermarket.
+    let nameOnly = null;
     try {
       const packed = await LocalPack.lookup(code);
-      if (packed) {
+      if (packed && !packed.needsNutrition) {
         await OFF.save(packed);
         return { food: packed, from: 'pack' };
       }
+      // Known product without a label in the snapshot: the live database may
+      // have it by now, so ask it first and fall back to the name.
+      if (packed) nameOnly = packed;
     } catch (_) { /* pack missing or unreadable — carry on */ }
 
     for (const v of codes) {
       try {
-        return await OFF.lookup(v);
+        const live = await OFF.lookup(v);
+        if (nameOnly && live.food.needsNutrition) return { food: nameOnly, from: 'pack' };
+        return live;
       } catch (err) {
         lastErr = err;
         if (err.code === 'offline' || err.code === 'timeout' || err.code === 'server' || err.code === 'unreachable') {
@@ -255,6 +261,7 @@
         }
       }
     }
+    if (nameOnly) return { food: nameOnly, from: 'pack' };
     if (netDown) throw lastErr;
 
     for (const v of codes) {
@@ -338,6 +345,18 @@
     notFound(code, err, o);
   }
 
+  /** What is known about a product without its label: processing and additives. */
+  function knownFacts(food) {
+    const adds = (food.additiveCodes || []).map(c => Additives.get(c)).filter(Boolean);
+    if (!adds.length && !food.nova) return '';
+    const chip = a => `<span class="${a.risk >= 2 ? 'bad' : 'good'}">${App.esc(a.e + ' ' + a.name)} · ${App.esc(Additives.RISK[a.risk || 0].short)}</span>`;
+    return `<div class="card mb12">
+      ${food.nova ? `<div class="between"><b style="font-size:14px">Processing</b><span class="badge">NOVA ${food.nova}</span></div>` : ''}
+      ${adds.length ? `<div class="tiny muted${food.nova ? ' mt12' : ''}" style="font-weight:650;margin-bottom:6px">Additives</div>
+        <div class="hl">${adds.map(chip).join('')}</div>` : ''}
+    </div>`;
+  }
+
   /** Known product, missing nutrition table — offer to complete it. */
   function incomplete(food, code, o) {
     const s = UI.sheet({
@@ -348,6 +367,7 @@
                but nobody has added its nutrition table yet. Type the values off the packet once and
                Eaty will remember them against this barcode — including offline.
              </p>
+             ${knownFacts(food)}
              <button class="btn primary block" type="button" id="ic-fill">
                ${App.icon('edit')}Enter the label</button>
              <button class="btn ghost block mt12" type="button" id="ic-skip">

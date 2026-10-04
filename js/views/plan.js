@@ -10,7 +10,9 @@
   const slotKey = (date, meal) => date + '|' + meal;
 
   App.views.plan = {
-    title: () => 'Meal plan',
+    /** Which half of the planner is showing: 'week' or 'shop'. */
+    part(v) { if (v === 'week' || v === 'shop') tab = v; return tab; },
+    title: () => (tab === 'shop' ? 'Shopping list' : 'Meal plan'),
     sub: () => {
       const ws = weekStart || App.date.weekStart(App.date.today());
       return App.date.short(ws) + ' – ' + App.date.short(App.date.add(ws, 6));
@@ -27,18 +29,8 @@
       const today = App.date.today();
       const t = App.state.targets;
 
-      el.innerHTML = `
-      <div class="stack">
-        <div class="segmented" id="plan-tabs">
-          <button type="button" data-ptab="week" class="${tab === 'week' ? 'on' : ''}">${App.icon('plan')}Week</button>
-          <button type="button" data-ptab="shop" class="${tab === 'shop' ? 'on' : ''}">${App.icon('cart')}Shopping list</button>
-        </div>
-        <div id="plan-body"></div>
-      </div>`;
-
-      el.querySelectorAll('[data-ptab]').forEach(b => b.addEventListener('click', () => {
-        tab = b.dataset.ptab; App.refresh();
-      }));
+      // Week / Shopping is chosen in the header's segmented control (app.js).
+      el.innerHTML = `<div class="stack"><div id="plan-body"></div></div>`;
 
       const body = el.querySelector('#plan-body');
       if (tab === 'week') renderWeek(body, plan, days, today, t);
@@ -91,7 +83,7 @@
       ${App.MEALS.map(m => {
         const items = plan.slots[slotKey(date, m.k)] || [];
         return `<div class="slot" data-slot="${slotKey(date, m.k)}">
-          <span class="slot-label">${m.label.slice(0, 5)}</span>
+          <span class="slot-label">${m.label}</span>
           <div class="slot-items">
             ${items.map((i, idx) => `<span class="plan-pill" data-pill="${idx}" data-from="${slotKey(date, m.k)}">
               <span>${App.esc(i.name)}</span><small>${App.int(i.n.kcal)}</small></span>`).join('')}

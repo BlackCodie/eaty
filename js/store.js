@@ -23,6 +23,82 @@
     recents:   { keyPath: 'id' }
   };
 
+  /* --------------------------------------------------------- import guard
+     A backup file is untrusted input: it may be hand-edited, truncated, or
+     shared by someone else. IDs and dates from it end up inside HTML
+     attributes, and numbers get printed raw, so both are checked here — the one
+     place where values that App.uid() did not generate can enter storage. */
+  const SAFE_ID = /^[A-Za-z0-9_.:\-]{1,96}$/;
+  const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+  const DATED = { weights: 1, days: 1, plans: 1, shopping: 1 };
+  const IMG_DATA = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/;
+  const num = (v, d) => { const x = Number(v); return isFinite(x) ? x : (d === undefined ? 0 : d); };
+
+  function sanitizeNutrients(n) {
+    if (!n || typeof n !== 'object') return n;
+    const out = {};
+    Object.keys(n).forEach(k => { out[k] = num(n[k]); });
+    return out;
+  }
+
+  function sanitizeRow(store, r) {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
+    const kp = SCHEMA[store].keyPath;
+    const key = r[kp];
+    if (typeof key !== 'string' || !SAFE_ID.test(key)) return null;
+    if (DATED[store] && !DATE_KEY.test(key)) return null;
+    if ((store === 'entries' || store === 'workouts') && !DATE_KEY.test(String(r.date))) return null;
+
+    const row = Object.assign({}, r);
+    if ('refId' in row && row.refId !== null && !(typeof row.refId === 'string' && SAFE_ID.test(row.refId))) {
+      row.refId = null;
+    }
+    if (row.n) row.n = sanitizeNutrients(row.n);
+
+    switch (store) {
+      case 'entries':
+        row.qty = num(row.qty, 1); row.grams = num(row.grams);
+        break;
+      case 'workouts':
+        row.minutes = num(row.minutes); row.kcal = num(row.kcal);
+        break;
+      case 'weights':
+        row.kg = num(row.kg, NaN);
+        if (!isFinite(row.kg) || row.kg <= 0) return null;
+        break;
+      case 'recipes':
+        row.servings = Math.max(1, num(row.servings, 1));
+        row.minutes = Math.max(0, num(row.minutes));
+        if (row.image && !IMG_DATA.test(String(row.image))) row.image = '';
+        if (Array.isArray(row.ingredients)) {
+          row.ingredients = row.ingredients.map(i => Object.assign({}, i, {
+            grams: num(i && i.grams),
+            refId: i && typeof i.refId === 'string' && SAFE_ID.test(i.refId) ? i.refId : null,
+            n100: sanitizeNutrients(i && i.n100)
+          }));
+        }
+        break;
+      case 'foods':
+        if (row.image && !/^https:\/\//.test(String(row.image))) row.image = '';
+        if (Array.isArray(row.servings)) {
+          row.servings = row.servings.map(sv => ({ label: String(sv && sv.label || ''), g: num(sv && sv.g, 100) }));
+        }
+        break;
+      case 'kv':
+        if (row.k === 'profile' && row.v && typeof row.v === 'object') {
+          ['age', 'height', 'weight', 'targetWeight', 'startWeight'].forEach(k => {
+            if (row.v[k] !== undefined && row.v[k] !== null) row.v[k] = num(row.v[k], null);
+          });
+        }
+        if (row.k === 'settings' && row.v && typeof row.v === 'object') {
+          if (['system', 'dark', 'light'].indexOf(row.v.theme) === -1) row.v.theme = 'system';
+          if (['mon', 'sun'].indexOf(row.v.firstDay) === -1) row.v.firstDay = 'mon';
+        }
+        break;
+    }
+    return row;
+  }
+
   /* ------------------------------------------------------- LS fallback */
   function LocalShim() {
     const mem = {};
@@ -186,9 +262,8 @@
       cache.settings = Object.assign({
         theme: 'system',
         firstDay: 'mon',
-        showMicros: true,
-        waterUnit: 'ml',
-        installDismissed: false
+        addExercise: true,
+        estimateMicros: true
       }, rec ? rec.v : {});
       return cache.settings;
     },
@@ -299,26 +374,57 @@
 
     /* ------------------------------------------------------ import/export */
     async exportAll() {
+      const SECRET_SETTINGS = ['fdcKey', 'claudeKey'];
       const out = { app: 'eaty', version: App.version, exportedAt: new Date().toISOString(), data: {} };
       for (const store of Object.keys(SCHEMA)) out.data[store] = await DB.getAll(store);
+      // API keys are credentials, not data: a backup gets shared and synced.
+      if (out.data.kv) {
+        out.data.kv = out.data.kv.map(r => {
+          if (!r || r.k !== 'settings' || !r.v) return r;
+          const v = Object.assign({}, r.v);
+          SECRET_SETTINGS.forEach(k => delete v[k]);
+          return Object.assign({}, r, { v });
+        });
+      }
       return out;
     },
     async importAll(payload, mode) {
-      if (!payload || !payload.data) throw new Error('Not an Eaty backup file');
-      if (mode === 'replace') {
-        for (const store of Object.keys(SCHEMA)) await DB.clear(store);
-      }
-      let n = 0;
+      if (!payload || typeof payload !== 'object' || !payload.data) throw new Error('Not an Eaty backup file');
+
+      // Validate everything first. Only then touch storage — "replace" used to
+      // wipe every store before looking at the file, so a truncated backup
+      // meant losing the lot.
+      const clean = {};
+      let n = 0, dropped = 0;
       for (const store of Object.keys(SCHEMA)) {
         const rows = payload.data[store];
-        if (!Array.isArray(rows) || !rows.length) continue;
-        // Drop rows missing their key so a corrupt file can't abort the transaction.
-        const kp = SCHEMA[store].keyPath;
-        const valid = rows.filter(r => r && r[kp] !== undefined && r[kp] !== null);
-        await DB.bulkPut(store, valid);
-        n += valid.length;
+        if (!Array.isArray(rows)) continue;
+        clean[store] = [];
+        for (const r of rows) {
+          const ok = sanitizeRow(store, r);
+          if (ok) { clean[store].push(ok); n++; } else dropped++;
+        }
+      }
+      if (!n) throw new Error('That backup contains no usable records');
+
+      // Backups carry no API keys; keep the ones already on this device.
+      const current = await Data.settings();
+      const keep = {};
+      ['fdcKey', 'claudeKey'].forEach(k => { if (current[k]) keep[k] = current[k]; });
+      if (clean.kv) clean.kv = clean.kv.map(r => (r && r.k === 'settings' && r.v)
+        ? Object.assign({}, r, { v: Object.assign({}, r.v, keep) }) : r);
+
+      if (mode === 'replace') {
+        for (const store of Object.keys(SCHEMA)) await DB.clear(store);
+        if (Object.keys(keep).length && !(clean.kv || []).some(r => r && r.k === 'settings')) {
+          (clean.kv = clean.kv || []).push({ k: 'settings', v: Object.assign({}, current) });
+        }
+      }
+      for (const store of Object.keys(clean)) {
+        if (clean[store].length) await DB.bulkPut(store, clean[store]);
       }
       Object.keys(cache).forEach(k => delete cache[k]);
+      if (dropped) console.warn('[import] skipped ' + dropped + ' malformed records');
       return n;
     },
     async resetAll() {
@@ -327,6 +433,7 @@
     },
 
     invalidate,
+    sanitizeRow,
     async stats() {
       const out = {};
       for (const s of Object.keys(SCHEMA)) out[s] = await DB.count(s);

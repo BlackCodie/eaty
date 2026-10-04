@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    offapi.js — Open Food Facts client
 
    Open Food Facts is a free, open product database with very strong German
@@ -22,64 +22,14 @@
     'generic_name', 'generic_name_de', 'abbreviated_product_name',
     'brands', 'quantity', 'serving_size', 'serving_quantity',
     'categories_tags', 'image_front_small_url', 'nutriments', 'nutrition_data_per',
-    // quality inputs
-    'nova_group', 'additives_n', 'nutriscore_grade', 'ingredients_analysis_tags'
+    // quality and physiology inputs
+    'nova_group', 'additives_n', 'additives_tags', 'nutriscore_grade', 'ingredients_analysis_tags',
+    'ingredients_tags', 'ingredients_n', 'ingredients_text_de', 'ingredients_text', 'allergens_tags',
+    'traces_tags', 'labels_tags'
   ].join(',');
 
-  /* our key : [ candidate OFF keys, multiplier from grams ] */
-  const MAP = {
-    protein: [['proteins'], 1],
-    carbs:   [['carbohydrates'], 1],
-    fat:     [['fat'], 1],
-    fiber:   [['fiber'], 1],
-    sugar:   [['sugars'], 1],
-    satfat:  [['saturated-fat'], 1],
-    water:   [['water'], 1],
-    chol:    [['cholesterol'], 1000],
-    na:      [['sodium'], 1000],
-    ca:      [['calcium'], 1000],
-    fe:      [['iron'], 1000],
-    mg:      [['magnesium'], 1000],
-    k:       [['potassium'], 1000],
-    zn:      [['zinc'], 1000],
-    p:       [['phosphorus'], 1000],
-    se:      [['selenium'], 1e6],
-    vitA:    [['vitamin-a'], 1e6],
-    b1:      [['vitamin-b1', 'thiamin'], 1000],
-    b2:      [['vitamin-b2', 'riboflavin'], 1000],
-    b3:      [['vitamin-pp', 'niacin'], 1000],
-    b5:      [['pantothenic-acid'], 1000],
-    b6:      [['vitamin-b6'], 1000],
-    b9:      [['vitamin-b9', 'folates'], 1e6],
-    b12:     [['vitamin-b12'], 1e6],
-    vitC:    [['vitamin-c'], 1000],
-    vitD:    [['vitamin-d'], 1e6],
-    vitE:    [['vitamin-e'], 1000],
-    vitK:    [['vitamin-k'], 1e6]
-  };
-
-  /* OFF category tag fragment -> our shopping/browse category */
-  const CATS = [
-    [/beverage|drink|water|juice|soda|coffee|tea|beer|wine|smoothie/, 'Drinks'],
-    [/yogurt|yoghurt|cheese|milk|dairy|cream|butter|quark|skyr|egg/, 'Dairy & Eggs'],
-    [/meat|poultry|chicken|beef|pork|sausage|ham|salami|charcuterie|wurst/, 'Meat & Poultry'],
-    [/seafood|fish|salmon|tuna|shrimp|prawn/, 'Fish & Seafood'],
-    [/bread|cereal|pasta|rice|flour|grain|noodle|baker|muesli|granola|oat/, 'Grains & Bread'],
-    [/legume|bean|lentil|chickpea|tofu|soy|tempeh|hummus/, 'Legumes & Soy'],
-    [/nut|seed|almond|peanut|cashew|walnut/, 'Nuts & Seeds'],
-    [/oil|fat|mayonnaise|margarine/, 'Fats & Oils'],
-    [/vegetable|salad|potato|tomato|carrot/, 'Vegetables'],
-    [/fruit|berr|apple|banana|orange/, 'Fruit'],
-    [/sauce|condiment|spice|vinegar|mustard|ketchup|dressing/, 'Condiments'],
-    [/supplement|protein-powder|sports-nutrition/, 'Supplements'],
-    [/snack|sweet|chocolate|candy|biscuit|cake|dessert|ice-cream|chips|crisps/, 'Snacks & Sweets']
-  ];
-
-  function pickCategory(tags) {
-    const joined = (tags || []).join(' ').toLowerCase();
-    for (const [re, cat] of CATS) if (re.test(joined)) return cat;
-    return 'Snacks & Sweets';
-  }
+  /* Category and liquid rules are shared with the pack builder (js/offmap.js). */
+  const pickCategory = tags => OffMap.catName(tags);
 
   /* ------------------------------------------------------------- fetch */
   async function once(url) {
@@ -129,36 +79,13 @@
   }
 
   /* ---------------------------------------------------------- mapping */
+  /* Nutrient keys and units are shared with the pack builder (js/offmap.js). */
   function nutrientsFrom(nutriments) {
-    const n = Nutrition.empty();
-    const declared = [];
-    const raw = nutriments || {};
-
-    // Energy: prefer the declared kcal, otherwise convert from kJ.
-    let kcal = num(raw['energy-kcal_100g']);
-    if (kcal === null) {
-      const kj = num(raw['energy-kj_100g']) ?? num(raw['energy_100g']);
-      if (kj !== null) kcal = kj / 4.184;
-    }
-    if (kcal !== null) { n.kcal = kcal; declared.push('kcal'); }
-
-    Object.keys(MAP).forEach(key => {
-      const [candidates, factor] = MAP[key];
-      for (const c of candidates) {
-        const v = num(raw[c + '_100g']);
-        if (v !== null) { n[key] = v * factor; declared.push(key); return; }
-      }
-    });
-
-    // Sodium is often only given as salt on European labels.
-    if (!declared.includes('na')) {
-      const salt = num(raw['salt_100g']);
-      if (salt !== null) { n.na = salt / 2.5 * 1000; declared.push('na'); }
-    }
+    const r = OffMap.nutrientsFrom(nutriments);
+    const n = Object.assign(Nutrition.empty(), r.n);
     // Fall back to macro-derived energy if the label omitted it.
     if (!n.kcal) n.kcal = Nutrition.kcalFromMacros(n);
-
-    return { n, declared };
+    return { n, declared: r.declared };
   }
 
   function num(v) {
@@ -197,10 +124,7 @@
     return v > 0 && v <= 10000 ? v : null;
   }
 
-  function isLiquid(p) {
-    return /\b(ml|l)\b/i.test(String(p.quantity || '') + ' ' + String(p.serving_size || '')) ||
-      (p.categories_tags || []).join(' ').includes('beverage');
-  }
+  const isLiquid = p => OffMap.isLiquid(p);
 
   /**
    * Turn an Open Food Facts product into one of our food records.
@@ -229,9 +153,9 @@
     const unit = isLiquid(p) ? 'ml' : 'g';
     const servings = [];
     const sv = parseServingGrams(p);
-    if (sv) servings.push({ label: (String(p.serving_size || '').trim() || ('1 Portion (' + sv + ' ' + unit + ')')), g: sv });
+    if (sv) servings.push({ label: (String(p.serving_size || '').trim() || ('1 serving (' + sv + ' ' + unit + ')')), g: sv });
     const pkg = parsePackageGrams(p);
-    if (pkg && pkg !== sv) servings.push({ label: 'Ganze Packung (' + p.quantity + ')', g: pkg });
+    if (pkg && pkg !== sv) servings.push({ label: 'Whole pack (' + p.quantity + ')', g: pkg });
     servings.push({ label: '100 ' + unit, g: 100 });
     servings.push({ label: '1 ' + unit, g: 1 });
 
@@ -240,6 +164,8 @@
     const showBrand = brand && brandToken && !name.toLowerCase().includes(brandToken);
 
     const micros = Nutrition.MICROS.filter(m => declared.includes(m.k)).length;
+    const flags = OffMap.ingredientFlags(p);
+    const ingredientsText = String(p.ingredients_text_de || p.ingredients_text || '').trim().slice(0, 2000);
 
     return {
       id: 'off-' + p.code,
@@ -260,12 +186,22 @@
       nova: Number(p.nova_group) || 0,
       additives: (function () {
         const a = Number(p.additives_n);
-        return isFinite(a) && a >= 0 ? a : -1;
+        if (p.additives_n !== undefined && isFinite(a) && a >= 0) return a;
+        // Bulk search omits additives_n; the E-numbers in the ingredients still count.
+        const codes = OffMap.additiveCodes(p).length;
+        return codes || (p.ingredients_tags && p.ingredients_tags.length) ? codes : -1;
       })(),
-      nutriscore: String(p.nutriscore_grade || '').toUpperCase(),
-      palmOilFree: (p.ingredients_analysis_tags || []).indexOf('en:palm-oil-free') !== -1,
-      vegan: (p.ingredients_analysis_tags || []).indexOf('en:vegan') !== -1,
-      vegetarian: (p.ingredients_analysis_tags || []).indexOf('en:vegetarian') !== -1,
+      additiveCodes: OffMap.additiveCodes(p),
+      allergens: OffMap.allergenMask(p),
+      ingredientsN: Number(p.ingredients_n) || 0,
+      ingredientsText,
+      nutriscore: String(p.nutriscore_grade || '').toUpperCase().replace(/[^A-E]/g, ''),
+      flags,
+      // Specific category tags, so the product can be compared with its own kind.
+      tags: (p.categories_tags || []).filter(t => !OffMap.UMBRELLA.test(t)).slice(-10),
+      palmOilFree: !!(flags & OffMap.FLAG.PALM_FREE),
+      vegan: !!(flags & OffMap.FLAG.VEGAN),
+      vegetarian: !!(flags & OffMap.FLAG.VEGETARIAN),
       source: 'off',
       search: (name + ' ' + brand + ' ' + p.code).toLowerCase(),
       builtin: false,

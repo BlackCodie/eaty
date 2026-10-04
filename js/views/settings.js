@@ -106,7 +106,9 @@
             return;
           }
           countEl.textContent = App.int(st.count) + ' products';
-          statusEl.innerHTML = `Snapshot from ${App.esc(st.built)} · ${st.shards} parts.`;
+          statusEl.innerHTML = `Snapshot from ${App.esc(st.built)}` +
+            (st.labelled ? ` · ${App.int(st.labelled)} with a nutrition label` : '') +
+            (st.gzBytes ? ` · ${(st.gzBytes / 1048576).toFixed(0)} MB to save offline` : '') + '.';
           if (await LocalPack.isDownloaded()) {
             dlBtn.innerHTML = App.icon('check') + 'Saved offline';
             dlBtn.classList.add('primary');
@@ -123,6 +125,7 @@
             });
             dlBtn.innerHTML = App.icon('check') + 'Saved offline';
             dlBtn.classList.add('primary');
+            App.state.packSaved = true;       // ticks the Today checklist
             statusEl.innerHTML = `<span style="color:var(--brand)">Whole pack saved — ${(r.bytes / 1024 / 1024).toFixed(1)} MB. Barcodes now resolve with no signal.</span>`;
             App.haptic('ok');
           } catch (err) {
@@ -225,6 +228,11 @@
             <button class="switch" type="button" role="switch" id="st-mon"
                     aria-checked="${(s.firstDay || 'mon') === 'mon'}"></button>
           </div>
+          <div class="switch-row">
+            <div class="sr-main"><b>Estimate missing nutrients</b><small>EU labels rarely list vitamins and minerals. Fill them in from the closest reference food, marked "est." and never used for the score</small></div>
+            <button class="switch" type="button" role="switch" id="st-est"
+                    aria-checked="${s.estimateMicros !== false}"></button>
+          </div>
         </div>
 
         <div class="section-title mb8">App</div>
@@ -253,6 +261,14 @@
           ex.setAttribute('aria-checked', String(now));
           App.state.settings = await Data.saveSettings({ addExercise: now });
           App.refresh();
+        });
+
+        const est = el.querySelector('#st-est');
+        est.addEventListener('click', async () => {
+          const now = est.getAttribute('aria-checked') !== 'true';
+          est.setAttribute('aria-checked', String(now));
+          App.state.settings = await Data.saveSettings({ estimateMicros: now });
+          App.haptic('light');
         });
 
         const mon = el.querySelector('#st-mon');

@@ -75,11 +75,12 @@
     return `<div class="recipe-card-wrap">
       <button class="recipe-card" type="button" data-act="open-recipe" data-id="${r.id}" style="width:100%">
         ${r.image
-          ? `<img class="recipe-thumb" src="${r.image}" alt="" loading="lazy">`
+          ? `<img class="recipe-thumb" src="${App.safeImg(r.image)}" alt="" loading="lazy">`
           : `<div class="recipe-thumb ph">${App.icon('recipes')}</div>`}
         <div class="recipe-body">
           <h3>${App.esc(r.name)}</h3>
           <div class="recipe-meta">
+            ${UI.gradePill(App.recipeQuality(r), true)}
             <span>${App.icon('flame')}${App.int(rn.perServing.kcal)} kcal</span>
             <span style="color:var(--protein)">${App.n(rn.perServing.protein, 0)}g P</span>
             ${r.minutes ? `<span>${App.icon('clock')}${r.minutes}m</span>` : ''}
@@ -124,7 +125,7 @@
       headerRight: `<button class="icon-btn${isFav ? ' accent' : ''}" type="button" id="rd-fav" aria-label="Favourite">${App.icon('star')}</button>
                     <button class="icon-btn" type="button" id="rd-more" aria-label="More">${App.icon('more')}</button>`,
       body: `
-        ${r.image ? `<img class="hero-img mb12" src="${r.image}" alt="">` : ''}
+        ${App.safeImg(r.image) ? `<img class="hero-img mb12" src="${App.safeImg(r.image)}" alt="">` : ''}
 
         ${(r.cats || []).length ? `<div class="chips mb12">${r.cats.map(c => `<span class="chip on">${App.esc(c)}</span>`).join('')}</div>` : ''}
 
@@ -147,6 +148,8 @@
           </div>
           <div class="tiny muted mt8">Bars show this serving against your daily target.</div>
         </div>
+
+        ${recipeQualityCard(r)}
 
         <div class="card mb12">
           <div class="card-head"><h2>Ingredients</h2>
@@ -220,6 +223,26 @@
         });
       }
     });
+  }
+
+  function recipeQualityCard(r) {
+    const q = App.recipeQuality(r);
+    if (!q) return '';
+    return `<div class="card mb12">
+      <div class="card-head"><h2>Food quality</h2><span class="sub">from ${q.rated} ingredient${q.rated === 1 ? '' : 's'}</span></div>
+      <div class="q-hero" style="background:transparent;border:0;padding:0">
+        <div class="q-ring">
+          ${Charts.rings([{ pct: q.score, color: q.color }], { size: 64, stroke: 7 })}
+          <div class="q-score"><b style="color:${q.color}">${q.score}</b><span>/100</span></div>
+        </div>
+        <div class="q-meta">
+          <h4 style="color:${q.color}">${q.grade} · ${q.label}</h4>
+          <p>${q.worst && q.best && q.worst.name !== q.best.name
+            ? 'Best: ' + App.esc(q.best.name) + '. Weakest: ' + App.esc(q.worst.name) + '.'
+            : 'Calorie-weighted across the ingredients.'}</p>
+        </div>
+      </div>
+    </div>`;
   }
 
   function guessMeal(r) {
@@ -436,7 +459,7 @@
   function imgHtml(src) {
     return src
       ? `<div style="position:relative">
-           <img class="hero-img" src="${src}" alt="">
+           <img class="hero-img" src="${App.safeImg(src)}" alt="">
            <button class="recipe-fav" type="button" data-rm-img style="top:10px;right:10px">${App.icon('trash')}</button>
          </div>`
       : `<div class="hero-img" style="display:grid;place-items:center;color:var(--tx-3);border:1.5px dashed var(--line-strong)">

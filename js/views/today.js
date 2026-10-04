@@ -27,7 +27,7 @@
         Data.day(today),
         Data.weights(),
         Data.entriesBetween(week[0], today),
-        Data.loggedDates(),
+        Data.loggedDates().catch(() => []),
         Data.DB.count('entries')
       ]);
 

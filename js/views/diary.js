@@ -20,7 +20,7 @@
         Data.entriesFor(date),
         Data.workoutsFor(date),
         Data.day(date),
-        Data.loggedDates()          // key-only read, just to dot the date strip
+        Data.loggedDates().catch(() => [])   // key-only read, just to dot the date strip
       ]);
 
       const totals = Nutrition.sum(entries.map(e => e.n));

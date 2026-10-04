@@ -175,6 +175,7 @@
     return {
       isFallback: false,
       open,
+      reset() { try { if (db) db.close(); } catch (_) {} db = null; },
       get:    (s, k) => tx(s).then(o => wrap(o.get(k))).then(r => r === undefined ? null : r),
       getAll: s => tx(s).then(o => wrap(o.getAll())),
       put:    (s, v) => tx(s, 'readwrite').then(o => wrap(o.put(v))).then(() => v),
@@ -191,15 +192,24 @@
        */
       distinct: (s, idx) => tx(s).then(o => new Promise((res, rej) => {
         const out = [];
-        const req = o.index(idx).openKeyCursor(null, 'nextunique');
+        let req;
+        try { req = o.index(idx).openKeyCursor(null, 'nextunique'); }
+        catch (e) { return rej(e); }
         req.onsuccess = () => {
           const c = req.result;
           if (!c) return res(out);
           out.push(c.key);
           c.continue();
         };
-        req.onerror = () => rej(req.error);
-      })),
+        req.onerror = e => { if (e && e.preventDefault) e.preventDefault(); rej(req.error); };
+      })).catch(() =>
+        // iOS Safari sometimes refuses key cursors ("Unable to open cursor").
+        // Reading the records and de-duplicating is slower but always works.
+        tx(s).then(o => wrap(o.getAll())).then(rows => {
+          const seen = new Set();
+          rows.forEach(r => { if (r && r[idx] !== undefined) seen.add(r[idx]); });
+          return Array.from(seen).sort();
+        })),
       bulkPut(s, arr) {
         if (!arr.length) return Promise.resolve();
         return open().then(d => new Promise((res, rej) => {
@@ -228,9 +238,17 @@
     },
     get isFallback() { return driver ? driver.isFallback : false; }
   };
+  /* iOS drops IndexedDB connections when a Home Screen app sits in the
+     background; the next call then fails ("Unable to open cursor", "Connection
+     is closing"). Reconnect and retry once before reporting an error. */
   ['get', 'getAll', 'put', 'del', 'clear', 'count',
    'byIndex', 'byRange', 'distinct', 'bulkPut'].forEach(m => {
-    DB[m] = (...a) => DB.init().then(d => d[m](...a));
+    DB[m] = (...a) => DB.init().then(d => d[m](...a)).catch(err => {
+      if (!driver || driver.isFallback || !driver.reset) throw err;
+      console.warn('[db] ' + m + ' failed, reconnecting:', err && err.message);
+      driver.reset();
+      return driver[m](...a);
+    });
   });
 
   /* ====================================================================

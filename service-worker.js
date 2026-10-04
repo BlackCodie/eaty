@@ -4,7 +4,7 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = 'eaty-v2.1.0';
+const VERSION = 'eaty-v2.1.1';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
 

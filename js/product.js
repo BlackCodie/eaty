@@ -85,6 +85,10 @@
             const fx = currentEffects()[Number(b.dataset.fx)];
             if (fx) openEffect(fx);
           }));
+          box.querySelectorAll('[data-hm]').forEach(b => b.addEventListener('click', () => {
+            const h = Hormones.forFood(shown, grams()).find(x => x.k === b.dataset.hm);
+            if (h) openHormone(h, App.n(grams(), 0) + ' ' + unit + ' of ' + food.name);
+          }));
           box.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => setPane(b.dataset.goto)));
           box.querySelectorAll('[data-per]').forEach(b => b.addEventListener('click', () => {
             st.per100 = b.dataset.per === '100'; draw();
@@ -324,6 +328,8 @@
         </div>
       </div>
 
+      ${hormoneStrip(Hormones.forFood(shown, g))}
+
       ${fx.length ? `<div class="section-title mt16 mb8">What it does in your body</div>
         ${fx.slice(0, 3).map((e, i) => fxHtml(e, i)).join('')}
         ${fx.length > 3 ? `<button class="btn ghost block sm" type="button" data-goto="body">See all ${fx.length} effects</button>` : ''}` : ''}
@@ -435,17 +441,66 @@
   /* ---- body ---- */
   function bodyPane(shown, g, unit) {
     const fx = Body.forFood(shown, g);
-    if (!fx.length) {
+    const hm = Hormones.forFood(shown, g);
+    if (!fx.length && !hm.length) {
       return `<div class="card">${UI.emptyState('pulse', 'Nothing notable at this portion',
         'No hormone, blood-sugar or organ effects stand out for ' + App.n(g, 0) + ' ' + unit + '. Try a bigger portion to see what changes.')}</div>` + disclaimer();
     }
     const groups = {};
     fx.forEach((e, i) => { (groups[e.system] = groups[e.system] || []).push([e, i]); });
-    return Object.keys(groups).map(sys => {
-      const meta = Body.SYSTEMS[sys] || { label: sys, icon: 'info' };
-      return `<div class="fx-group"><h5>${App.icon(meta.icon)}${App.esc(meta.label)}</h5>
-        ${groups[sys].map(([e, i]) => fxHtml(e, i)).join('')}</div>`;
-    }).join('') + disclaimer();
+    return (hm.length ? `<div class="section-title mb8">Hormones · ${App.n(g, 0)} ${App.esc(unit)}</div>${hormoneGrid(hm)}` : '') +
+      (fx.length ? `<div class="section-title mt16 mb8">Body systems</div>` : '') +
+      Object.keys(groups).map(sys => {
+        const meta = Body.SYSTEMS[sys] || { label: sys, icon: 'info' };
+        return `<div class="fx-group"><h5>${App.icon(meta.icon)}${App.esc(meta.label)}</h5>
+          ${groups[sys].map(([e, i]) => fxHtml(e, i)).join('')}</div>`;
+      }).join('') + disclaimer();
+  }
+
+  /* ---- hormones ---- */
+  function hormoneTile(h, extra) {
+    const lead = h.items.find(i => i.dir === h.dir) || h.items[0];
+    return `<button class="hm tone-${h.tone}" type="button" data-hm="${h.k}">
+      <span class="hm-top"><span class="hm-ic">${App.icon(h.icon)}</span>
+        <b>${App.esc(h.label)}</b><span class="hm-ar" aria-label="${App.esc(Hormones.DIR_TEXT[h.dir])}">${Hormones.arrow(h.dir, h.level)}</span></span>
+      <span class="hm-why">${App.esc(extra || lead.text)}</span>
+    </button>`;
+  }
+  function hormoneGrid(list, extraFor) {
+    return `<div class="hm-grid">${list.map(h => hormoneTile(h, extraFor ? extraFor(h) : null)).join('')}</div>`;
+  }
+  /** Compact one-line strip for the overview. */
+  function hormoneStrip(list) {
+    const shown = list.filter(h => h.dir !== 'neutral').slice(0, 6);
+    if (!shown.length) return '';
+    return `<div class="section-title mt16 mb8">Hormone impact</div>
+      <div class="hm-strip">${shown.map(h =>
+        `<button type="button" class="tone-${h.tone}" data-goto="body"><b>${Hormones.arrow(h.dir, h.level)}</b>${App.esc(h.label.replace(/ \(.*\)$/, ''))}</button>`).join('')}</div>`;
+  }
+  function openHormone(h, context) {
+    UI.sheet({
+      title: h.label,
+      subtitle: context || '',
+      body: `
+        <p class="muted" style="font-size:14px;line-height:1.55">${App.esc(h.role)}</p>
+        <div class="hm-verdict tone-${h.tone} mt12"><b>${Hormones.arrow(h.dir, h.level)}</b>
+          <span>${App.esc(Hormones.DIR_TEXT[h.dir])}</span></div>
+        <div class="mt12">${h.items.map(i => `
+          <div class="fx tone-${i.tone}" style="cursor:default">
+            <span class="fx-ic" style="font-weight:800;font-size:15px">${Hormones.arrow(i.dir, i.strength)}</span>
+            <span class="fx-main">
+              ${i.food ? `<b>${App.esc(i.food)}</b>` : ''}
+              <p style="margin-top:${i.food ? 4 : 0}px;color:var(--tx)">${App.esc(i.text)}</p>
+              <span class="fx-meta">${evidenceBadge(i.evidence)}</span>
+            </span>
+          </div>`).join('')}</div>
+        ${(() => {
+          const src = Array.from(new Set([].concat.apply([], h.items.map(i => i.src))));
+          return src.length ? `<div class="section-title mt16 mb8">Sources</div>
+            <ul class="src-list">${src.map(k => `<li>${App.esc(Body.SOURCES[k] || k)}</li>`).join('')}</ul>` : '';
+        })()}
+        ${disclaimer()}`
+    });
   }
 
   function fxHtml(e, i) {
@@ -548,5 +603,5 @@
 
   const cap = s => String(s).charAt(0).toUpperCase() + String(s).slice(1);
 
-  window.Product = { open, fxHtml, openEffect, evidenceBadge, disclaimer };
+  window.Product = { open, fxHtml, openEffect, evidenceBadge, disclaimer, hormoneGrid, openHormone };
 })();

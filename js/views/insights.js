@@ -48,7 +48,8 @@
       const items = day.items.slice().sort((a, b) => RANK[a.tone] - RANK[b.tone]);
       const count = t => items.filter(i => i.tone === t).length;
       const effects = foodEffects(entries);
-      App.state.insights = { items, effects, entries: all };
+      const hormones = Hormones.forDay(all, resolve).filter(h => h.dir !== 'neutral');
+      App.state.insights = { items, effects, hormones, entries: all };
 
       const good = count('good'), watch = count('caution'), warn = count('warn');
       const headline = warn ? (warn === 1 ? 'One thing needs attention' : warn + ' things need attention')
@@ -70,6 +71,11 @@
           </div>
         </div>
 
+        ${hormones.length ? `<div>
+          <div class="section-title mb8">Today's hormones</div>
+          ${Product.hormoneGrid(hormones, h => 'From ' + h.foods.slice(0, 3).join(', ') + (h.foods.length > 3 ? ' +' + (h.foods.length - 3) : ''))}
+        </div>` : ''}
+
         <div>
           <div class="section-title mb8">Daily signals</div>
           <div class="card flush">${items.map((i, k) => sigHtml(i, k)).join('')}</div>
@@ -84,6 +90,10 @@
       </div>`;
 
       el.querySelectorAll('[data-sig]').forEach(b => b.addEventListener('click', () => openSignal(items[Number(b.dataset.sig)], all)));
+      el.querySelectorAll('[data-hm]').forEach(b => b.addEventListener('click', () => {
+        const h = hormones.find(x => x.k === b.dataset.hm);
+        if (h) Product.openHormone(h, App.date.label(date) + ' · ' + h.foods.length + ' food' + (h.foods.length === 1 ? '' : 's'));
+      }));
       el.querySelectorAll('[data-fxi]').forEach(b => b.addEventListener('click', () => {
         const x = effects[Number(b.dataset.fxi)];
         if (x) Product.openEffect(x.effect);
@@ -147,7 +157,7 @@
     entries.forEach(e => {
       if (!e.n || !(e.grams > 0)) return;
       const f = resolve(e);
-      const food = Object.assign({}, f || { name: e.name }, { n: Nutrition.scale(e.n, 100 / e.grams) });
+      const food = Object.assign({}, f || { name: e.name }, { n: Nutrition.mul(e.n, 100 / e.grams) });
       Body.forFood(food, e.grams).forEach(fx => {
         const cur = byId.get(fx.id);
         if (!cur) byId.set(fx.id, { effect: fx, foods: [e.name] });

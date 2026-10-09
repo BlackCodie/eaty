@@ -4,7 +4,7 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = 'eaty-v2.1.1';
+const VERSION = 'eaty-v2.2.0';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
 
@@ -31,6 +31,7 @@ const PRECACHE = [
   './js/quality.js',
   './js/estimate.js',
   './js/body.js',
+  './js/hormones.js',
   './js/charts.js',
   './js/ui.js',
   './js/barcode.js',

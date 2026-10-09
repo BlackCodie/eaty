@@ -1,6 +1,6 @@
 {
   "name": "eaty",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "private": true,
   "description": "Offline-first nutrition tracker PWA — static files, no build step.",
   "scripts": {

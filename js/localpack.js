@@ -87,6 +87,52 @@
     return map;
   }
 
+  /* Typical portions by kind of product, for labels without a serving size.
+     First match wins; the pack size caps the portion (a 20 g bar is 20 g). */
+  const PORTIONS = [
+    [/sirup|syrup|konzentrat|concentrate/, 20, 'portion'],
+    [/likör|likoer|liqueur|licor|schnaps|wodka|vodka|\brum\b|whisk|\bgin\b|\bkorn\b|brandy|tequila|ouzo|grappa|aperitif/, 20, 'shot', true],
+    [/\bwein\b|weißwein|weisswein|rotwein|rosé|wine|\bsekt\b|prosecco|champagner|\bvino\b|\bvin\b/, 150, 'glass', true],
+    [/energy ?drink|red ?bull|monster/, 250, 'can', true],
+    [/\bbier\b|beer|pils|weizen|radler|lager/, 500, 'bottle', true],
+    [/milch(?!schokolade|reis)|milk(?! chocolate)|kakao(trunk|getränk)|drink|smoothie|saft|juice|schorle|limo|cola|wasser|water|tee|tea|kaffee|coffee|latte|eistee/, 250, 'glass', true],
+    [/suppe|soup|eintopf/, 300, 'bowl'],
+    [/pizza|lasagne|fertiggericht|ready meal|auflauf|gulasch|goulash|curry|risotto|paella|chili con|bowl\b|menü|gericht/, 0, ''],
+    [/hähnchen|haehnchen|chicken|pute|turkey|\brind|beef|schwein|pork|hackfleisch|steak|filet|lachs|salmon|forelle|fisch|fish|thunfisch|tuna|garnelen|shrimp|tofu|tempeh|seitan/, 125, 'portion'],
+    [/joghurt|jogurt|yogh?urt|yaourt|skyr|quark|pudding|dessert|grieß|kefir/, 150, 'pot'],
+    [/\beier\b|\beggs?\b/, 60, 'egg'],
+    [/hummus|guacamole|tzatziki|aufstrich/, 30, 'portion'],
+    [/müsli|muesli|granola|cornflakes|flakes|cereal|porridge|haferflocken|oats/, 50, 'bowl'],
+    [/brot|bread|toast|brötchen|broetchen|baguette|ciabatta|knäcke/, 50, 'slice'],
+    [/nudeln|pasta|spaghetti|penne|fusilli|\breis\b|\brice\b|couscous|bulgur|quinoa|linsen|lentils|bohnen|beans|kichererbsen/, 80, 'portion (dry)'],
+    [/käse|kaese|cheese|gouda|emmentaler|mozzarella|camembert|feta|frischkäse/, 30, 'portion'],
+    [/salami|schinken|\bham\b|aufschnitt|mortadella|lyoner|leberwurst|bacon|speck|teewurst/, 30, 'portion'],
+    [/bratwurst|würstchen|wuerstchen|wiener|frankfurter|bockwurst|wurst/, 100, 'portion'],
+    [/schokolade|chocolate|zartbitter|vollmilch|praline|riegel|\bbars?\b/, 25, 'portion'],
+    [/chips|crisps|flips|nachos|popcorn|cracker|brezel|salzstangen/, 30, 'handful'],
+    [/nüsse|nuesse|nuts|mandeln|almonds|cashew|erdnüsse|peanuts|studentenfutter|trail mix|pistazien|walnüsse/, 30, 'handful'],
+    [/gummi|fruchtgummi|bonbon|lakritz|weingummi|candy|marshmallow/, 25, 'handful'],
+    [/keks|kekse|cookie|biscuit|waffel|wafer|gebäck|kuchen|cake|muffin|croissant/, 40, 'piece'],
+    [/aufstrich|nutella|nuss-nougat|marmelade|konfitüre|\bjam\b|honig|honey|erdnussbutter|peanut butter/, 20, 'spread'],
+    [/butter|margarine|\böl\b|\boil\b|ghee/, 10, 'portion'],
+    [/ketchup|mayo|senf|mustard|dressing|sauce|soße|sosse|pesto|\bdip\b/, 20, 'portion'],
+    [/\beis\b|eiscreme|ice cream|gelato|sorbet/, 100, 'scoop']
+  ];
+  function typicalPortion(name, liquid, pkg, cat) {
+    const t = String(name || '').toLowerCase();
+    for (const [rx, g, label, drink] of PORTIONS) {
+      if (!rx.test(t)) continue;
+      if (!g) return null;                                  // eaten as the whole pack
+      if (drink && !liquid) continue;                       // "Kakao" powder is not a glass
+      const grams = pkg > 0 && pkg < g ? pkg : g;
+      return { label: label.charAt(0).toUpperCase() + label.slice(1) + ' (' + grams + ' ' + (liquid ? 'ml' : 'g') + ')', g: grams, typical: true };
+    }
+    // Nothing in the name: fall back on the aisle.
+    if (cat === 'Drinks' && liquid) return { label: 'Glass (250 ml)', g: pkg > 0 && pkg < 250 ? pkg : 250, typical: true };
+    if (cat === 'Snacks & Sweets' && !liquid) return { label: 'Portion (30 g)', g: pkg > 0 && pkg < 30 ? pkg : 30, typical: true };
+    return null;
+  }
+
   /** Expand a packed row into the app's food shape. */
   function toFood(row) {
     const n = Nutrition.empty();
@@ -118,6 +164,10 @@
     const unit = row[F.LIQUID] ? 'ml' : 'g';
     const servings = [];
     if (row[F.SERV] > 0) servings.push({ label: 'Serving (' + row[F.SERV] + ' ' + unit + ')', g: row[F.SERV] });
+    else {
+      const tp = typicalPortion(row[F.NAME], !!row[F.LIQUID], row[F.PKG], CATS[row[F.CAT]]);
+      if (tp && tp.g !== row[F.PKG]) servings.push(tp);
+    }
     if (row[F.PKG] > 0 && row[F.PKG] !== row[F.SERV]) {
       servings.push({ label: 'Whole pack (' + row[F.PKG] + ' ' + unit + ')', g: row[F.PKG] });
     }
@@ -331,6 +381,37 @@
     return { better: Math.round(better), n, basis: types ? typeLabel(types.list[ti][0]) : 'its category' };
   }
 
+  /* Scannable supplements with per-dose labels (tools/fetch-supplements.js). */
+  let suppPromise = null;
+  function loadSupplements() {
+    if (!suppPromise) {
+      suppPromise = info().then(() => fetch(DIR + 'supplements.json' + ver()))
+        .then(r => (r && r.ok ? r.json() : null)).catch(() => null)
+        .then(j => {
+          if (!j || !Array.isArray(j.rows)) { suppPromise = null; return null; }
+          return new Map(j.rows.map(r => [r[0], r]));
+        });
+    }
+    return suppPromise;
+  }
+
+  /** Barcode -> { code, name, brand, unitKey, doseLabel, doseG, per, micros } or null. */
+  async function supplement(code) {
+    const m = await loadSupplements();
+    if (!m) return null;
+    const key = String(code).replace(/\D/g, '');
+    for (const v of Barcode.variants(key)) {
+      const r = m.get(v);
+      if (!r) continue;
+      const per = r[5] || {};
+      const d = /([\d.,]+)\s*(g|ml|mg)\b/i.exec(r[4] || '');
+      const doseG = d ? Number(d[1].replace(',', '.')) * (d[2].toLowerCase() === 'mg' ? 0.001 : 1) : 0;
+      return { code: r[0], name: r[1], brand: r[2], unitKey: r[3], doseLabel: r[4], doseG, per,
+        micros: OffMap.MICRO_KEYS.filter(k => per[k] > 0).length + (per.epadha > 0 ? 1 : 0) };
+    }
+    return null;
+  }
+
   /** How big the bundled pack is, for the Settings screen. */
   async function stats() {
     const m = await info();
@@ -355,7 +436,7 @@
       if (onProgress) onProgress(done, m.shards, bytes);
     }
     // The alternatives index and category names, so "better choices" work offline too.
-    for (const extra of ['top.json', 'types.json']) {
+    for (const extra of ['top.json', 'types.json', 'supplements.json']) {
       try {
         const res = await fetch(DIR + extra + ver());
         if (res.ok) bytes += (await res.arrayBuffer()).byteLength;
@@ -377,5 +458,5 @@
     } catch (_) { return false; }
   }
 
-  window.LocalPack = { lookup, search, alternatives, rank, loadTop, loadTypes, typeOf, typeLabel, stats, info, toFood, shardOf, download, isDownloaded, DIR };
+  window.LocalPack = { typicalPortion, lookup, supplement, search, alternatives, rank, loadTop, loadTypes, typeOf, typeLabel, stats, info, toFood, shardOf, download, isDownloaded, DIR };
 })();

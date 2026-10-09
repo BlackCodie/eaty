@@ -29,9 +29,9 @@ const FIELDS = [
 ].join(',');
 const PAGE = 1000;
 const MAX_PAGES = 10;               // Elasticsearch caps from+size at 10k
-const SHARDS = 128;
+const SHARDS = 160;
 const PACK_VERSION = 5;
-const MIN_PRODUCTS = 150000;        // a run that finds fewer than this is broken
+const MIN_PRODUCTS = 300000;        // a run that finds fewer than this is broken
 
 /* German retailers' own brands. Their products share EANs across the EU, so
    ones only tagged in a neighbouring country are still on German shelves.
@@ -58,11 +58,41 @@ const BRANDS = [
   'globus', 'tegut', 'real', 'denree', 'demeter', 'veganz', 'vegini', 'like-meat', 'garden-gourmet'
 ];
 
-/* The German market, and neighbouring countries for retailer house brands. */
+/* The German market, then products made by German, Austrian and Swiss
+   companies (by GS1 barcode prefix) that are only listed abroad — most of
+   them are on German shelves too — and dietary supplements from the EU. */
+const NOT_MARKET = '-countries_tags:"en:germany" AND -countries_tags:"en:austria" AND -lang:de';
 const MARKETS = [
   ['germany', 'countries_tags:"en:germany"'],
   ['austria', 'countries_tags:"en:austria" AND -countries_tags:"en:germany"'],
-  ['german-label', 'lang:de AND -countries_tags:"en:germany" AND -countries_tags:"en:austria"']
+  ['german-label', 'lang:de AND -countries_tags:"en:germany" AND -countries_tags:"en:austria"'],
+  ['made-in-de 40', 'code:40* AND ' + NOT_MARKET],
+  ['made-in-de 41', 'code:41* AND ' + NOT_MARKET],
+  ['made-in-de 42', 'code:42* AND ' + NOT_MARKET],
+  ['made-in-de 43', 'code:43* AND ' + NOT_MARKET],
+  ['made-in-de 440', 'code:440* AND ' + NOT_MARKET],
+  ['made-in-at', '(code:90* OR code:91*) AND ' + NOT_MARKET],
+  ['made-in-ch', 'code:76* AND ' + NOT_MARKET]
+];
+/* National brands on German shelves whose items are only tagged with a
+   neighbouring country (same EAN across the EU), plus supplement makers. */
+const NATIONAL = [
+  'dr-oetker', 'ritter-sport', 'haribo', 'milka', 'ferrero', 'kinder', 'nutella', 'bahlsen', 'leibniz',
+  'griesson', 'lambertz', 'knorr', 'maggi', 'iglo', 'frosta', 'wagner', 'coppenrath-wiese', 'muller',
+  'ehrmann', 'zott', 'danone', 'alpro', 'oatly', 'arla', 'bauer', 'onken', 'milram', 'gervais',
+  'philadelphia', 'leerdammer', 'hochland', 'kerrygold', 'landliebe', 'weihenstephan', 'rugenwalder-muhle',
+  'wiesenhof', 'herta', 'meica', 'homann', 'kolln', 'seitenbacher', 'brandt', 'schar', 'barilla', 'buitoni',
+  'kellogg-s', 'nestle', 'lorenz', 'pringles', 'funny-frisch', 'chio', 'seeberger', 'wasa', 'harry',
+  'golden-toast', 'mestemacher', 'thomy', 'hela', 'develey', 'kuhne', 'zentis', 'bonne-maman', 'mondamin',
+  'pfanni', 'uncle-ben-s', 'oryza', 'storck', 'katjes', 'trolli', 'hanuta', 'duplo', 'mars', 'snickers',
+  'twix', 'oreo', 'tuc', 'lindt', 'bifi', 'exquisa', 'valensina', 'hohes-c', 'capri-sun', 'red-bull',
+  'monster-energy', 'coca-cola', 'pepsi', 'fanta', 'schweppes', 'gerolsteiner', 'volvic', 'evian',
+  'heineken', 'paulaner', 'krombacher', 'beck-s', 'warsteiner', 'erdinger', 'jacobs', 'tchibo', 'dallmayr',
+  'lavazza', 'nescafe', 'teekanne', 'messmer', 'pukka', 'yogi-tea',
+  // supplements and sports nutrition
+  'mivolis', 'altapharma', 'doppelherz', 'abtei', 'das-gesunde-plus', 'tetesept', 'sunday-natural',
+  'centrum', 'orthomol', 'esn', 'more-nutrition', 'foodspring', 'myprotein', 'optimum-nutrition',
+  'powerbar', 'multipower', 'kruger', 'queisser', 'nature-love', 'gloryfeel', 'naturtreu', 'vitabay'
 ];
 const NEIGHBOURS = '(' + ['germany', 'austria', 'switzerland', 'netherlands', 'belgium', 'luxembourg', 'france',
   'poland', 'czech-republic', 'denmark', 'italy', 'spain'].map(c => `countries_tags:"en:${c}"`).join(' OR ') + ')';
@@ -255,6 +285,8 @@ if (require.main !== module) { module.exports = { writeShards, SHARDS }; return;
   console.log('Harvesting the German market from Open Food Facts…\n');
   for (const [label, q] of MARKETS) await harvestAll(label, q);
   for (const b of BRANDS) await harvest('brand:' + b, `brands_tags:"${b}" AND ${NEIGHBOURS}`);
+  for (const b of NATIONAL) await harvest('national:' + b, `brands_tags:"${b}" AND ${NEIGHBOURS} AND ${NOT_MARKET}`);
+  await harvestAll('supplements-eu', `categories_tags:"en:dietary-supplements" AND ${NEIGHBOURS} AND ${NOT_MARKET}`);
 
   const all = Array.from(seen.values());
   const labelled = all.filter(r => r[7] !== null).length;

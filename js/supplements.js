@@ -45,6 +45,37 @@
   // Labels show which: "d-" is natural, "dl-" is synthetic.
   const IU_E_SYNTHETIC = 0.45;
 
+  /* Common supplements as sold in German pharmacies and drugstores, with the
+     usual amount per dose — a one-tap start; the label always wins. */
+  const TEMPLATES = [
+    { name: 'Vitamin D3 1000 IU', unitKey: 'tablet', per: { vitD: 25 } },
+    { name: 'Vitamin D3 2000 IU', unitKey: 'tablet', per: { vitD: 50 } },
+    { name: 'Vitamin D3 + K2', unitKey: 'drop', per: { vitD: 25, vitK: 100 } },
+    { name: 'Magnesium 300 mg', unitKey: 'tablet', per: { mg: 300 } },
+    { name: 'Magnesium 400 mg', unitKey: 'capsule', per: { mg: 400 } },
+    { name: 'Zinc 10 mg', unitKey: 'tablet', per: { zn: 10 } },
+    { name: 'Zinc 25 mg', unitKey: 'tablet', per: { zn: 25 } },
+    { name: 'Omega-3 fish oil 1000 mg', unitKey: 'softgel', per: { epadha: 300, omega3: 0.3, fat: 1, kcal: 9 } },
+    { name: 'Omega-3 algae oil', unitKey: 'softgel', per: { epadha: 250, omega3: 0.25, fat: 0.5, kcal: 5 } },
+    { name: 'Vitamin C 500 mg', unitKey: 'tablet', per: { vitC: 500 } },
+    { name: 'Vitamin B12 500 µg', unitKey: 'tablet', per: { b12: 500 } },
+    { name: 'Vitamin B12 1000 µg', unitKey: 'drop', per: { b12: 1000 } },
+    { name: 'Vitamin B complex', unitKey: 'capsule', per: { b1: 1.1, b2: 1.4, b3: 16, b5: 6, b6: 1.4, b9: 200, b12: 2.5 } },
+    { name: 'Multivitamin A–Z', unitKey: 'tablet', per: { vitA: 800, b1: 1.1, b2: 1.4, b3: 16, b5: 6, b6: 1.4, b9: 200, b12: 2.5,
+      vitC: 80, vitD: 5, vitE: 12, vitK: 30, ca: 160, fe: 14, mg: 100, zn: 10, se: 55, iodine: 150, p: 125 } },
+    { name: 'Iron 14 mg + vitamin C', unitKey: 'tablet', per: { fe: 14, vitC: 40 } },
+    { name: 'Calcium 500 mg + D3', unitKey: 'tablet', per: { ca: 500, vitD: 10 } },
+    { name: 'Folic acid 400 µg', unitKey: 'tablet', per: { b9: 400 } },
+    { name: 'Iodine 100 µg (Jodid)', unitKey: 'tablet', per: { iodine: 100 } },
+    { name: 'Selenium 55 µg', unitKey: 'tablet', per: { se: 55 } },
+    { name: 'Potassium 200 mg', unitKey: 'capsule', per: { k: 200 } },
+    { name: 'Caffeine 200 mg', unitKey: 'tablet', per: { caffeine: 200 } },
+    { name: 'Creatine monohydrate 5 g', unitKey: 'scoop', per: {} },
+    { name: 'Ashwagandha 600 mg', unitKey: 'capsule', per: {} },
+    { name: 'Probiotic', unitKey: 'capsule', per: {} },
+    { name: 'Melatonin 1 mg', unitKey: 'tablet', per: {} }
+  ];
+
   const isSupplement = f => !!(f && f.kind === 'supplement');
   App.isSupplement = isSupplement;
 
@@ -109,8 +140,10 @@
     const existing = o.supplement || null;
     const micros = Nutrition.MICROS;
 
+    // A scanned product can arrive with its per-dose label already known.
+    const pre = o.prefill || {};
     const seedPer = {};
-    Nutrition.KEYS.forEach(k => { seedPer[k] = existing ? perDose(existing, k) : 0; });
+    Nutrition.KEYS.forEach(k => { seedPer[k] = existing ? perDose(existing, k) : ((pre.per && pre.per[k]) || 0); });
 
     const field = (key, label, unit, value, extra) => `
       <div class="field" style="margin-bottom:10px">
@@ -138,6 +171,14 @@
       title: existing ? 'Edit supplement' : 'Add supplement',
       subtitle: 'Enter the label exactly as printed, per dose',
       body: `
+        ${!existing ? `<div class="field">
+          ${pre.per && Object.keys(pre.per).length ? `<div class="est-note mb12">${App.icon('info')}<span>
+            <b>Filled in from Open Food Facts.</b> Check the amounts against your label once — every
+            later scan of this barcode logs a dose instantly.</span></div>` : ''}
+          <label>${pre.per && Object.keys(pre.per).length ? 'Or start from a common supplement' : 'Start from a common supplement'}</label>
+          <div class="chips bleed" id="sp-templates">${TEMPLATES.map((t, i) =>
+            `<button class="chip" type="button" data-tpl="${i}">${App.esc(t.name)}</button>`).join('')}</div>
+        </div>` : ''}
         <div class="field">
           <label for="sp-name">Name</label>
           <input id="sp-name" name="name" type="text" autocapitalize="sentences"
@@ -151,7 +192,7 @@
           <div class="field" style="max-width:130px">
             <label>Dose unit</label>
             <select name="unitKey">
-              ${UNITS.map(u => `<option value="${u.k}"${(existing ? existing.unitKey : 'capsule') === u.k ? ' selected' : ''}>${u.one}</option>`).join('')}
+              ${UNITS.map(u => `<option value="${u.k}"${(existing ? existing.unitKey : (pre.unitKey || 'capsule')) === u.k ? ' selected' : ''}>${u.one}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -190,6 +231,11 @@
           ${field('kcal', 'Energy', 'kcal', seedPer.kcal)}
           ${field('protein', 'Protein', 'g', seedPer.protein)}
           ${field('fiber', 'Fibre', 'g', seedPer.fiber)}
+          ${field('fat', 'Fat', 'g', seedPer.fat)}
+          ${field('carbs', 'Carbohydrate', 'g', seedPer.carbs)}
+          ${field('epadha', 'Omega-3 EPA + DHA', 'mg', seedPer.epadha)}
+          ${field('omega3', 'Omega-3 total', 'g', seedPer.omega3)}
+          ${field('caffeine', 'Caffeine', 'mg', seedPer.caffeine)}
         </div>
 
         <div class="field mt14">
@@ -210,6 +256,24 @@
         unitSel.addEventListener('change', () => {
           el.querySelector('#sp-unit-word').textContent = unitOf(unitSel.value).one;
         });
+        el.querySelector('#sp-unit-word').textContent = unitOf(unitSel.value).one;
+
+        // Templates fill the dose fields; the name only if it is still empty.
+        el.querySelectorAll('[data-tpl]').forEach(b => b.addEventListener('click', () => {
+          const t = TEMPLATES[Number(b.dataset.tpl)];
+          el.querySelectorAll('[data-tpl]').forEach(x => x.classList.toggle('on', x === b));
+          const nameEl = el.querySelector('[name="name"]');
+          if (!nameEl.value.trim()) nameEl.value = t.name;
+          unitSel.value = t.unitKey;
+          el.querySelector('#sp-unit-word').textContent = unitOf(t.unitKey).one;
+          Nutrition.KEYS.forEach(k => {
+            const inp = el.querySelector(`[name="p_${k}"]`);
+            if (inp) inp.value = t.per[k] !== undefined ? t.per[k] : '';
+            const sel = el.querySelector(`[name="u_${k}"]`);
+            if (sel) sel.value = 'native';
+          });
+          App.haptic('light');
+        }));
 
         const dailySw = el.querySelector('#sp-daily');
         dailySw.addEventListener('click', () => {
@@ -358,7 +422,7 @@
   }
 
   window.Supplements = {
-    UNITS, IU, IU_E_SYNTHETIC, MEAL,
+    UNITS, IU, IU_E_SYNTHETIC, MEAL, TEMPLATES,
     all, stack, editor, take, takeAll, untake, takenOn, split,
     isSupplement, unitOf, doseLabel, perDose, build
   };

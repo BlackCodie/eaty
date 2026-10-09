@@ -59,7 +59,13 @@
     'witkowski-2023': 'Witkowski M et al. (2023). The artificial sweetener erythritol and cardiovascular event risk. Nat Med 29:710–718.',
     'efsa-tio2': 'EFSA FAF Panel (2021). Safety assessment of titanium dioxide (E171) as a food additive. EFSA Journal 19(5):6585.',
     'mccann-2007': 'McCann D et al. (2007). Food additives and hyperactive behaviour in 3-year-old and 8/9-year-old children. Lancet 370:1560–1567.',
-    'batterham-2006': 'Batterham RL et al. (2006). Critical role for peptide YY in protein-mediated satiation and body-weight regulation. Cell Metab 4(3):223–233.'
+    'batterham-2006': 'Batterham RL et al. (2006). Critical role for peptide YY in protein-mediated satiation and body-weight regulation. Cell Metab 4(3):223–233.',
+    'efsa-cocoa': 'EFSA NDA Panel (2012). Health claim: cocoa flavanols and maintenance of normal endothelium-dependent vasodilation. EFSA Journal 10(7):2809.',
+    'efsa-egcg': 'EFSA ANS Panel (2018). Scientific opinion on the safety of green tea catechins. EFSA Journal 16(4):5239.',
+    'ried-2016': 'Ried K (2016). Garlic lowers blood pressure in hypertensive individuals, regulates serum cholesterol, and stimulates immunity: an updated meta-analysis and review. J Nutr 146(2):389S–396S.',
+    'viljoen-2014': 'Viljoen E et al. (2014). A systematic review and meta-analysis of the effect and safety of ginger in the treatment of pregnancy-associated nausea and vomiting. Nutr J 13:20.',
+    'daily-2016': 'Daily JW et al. (2016). Efficacy of turmeric extracts and curcumin for alleviating the symptoms of joint arthritis: a systematic review and meta-analysis. J Med Food 19(8):717–729.',
+    'livertox-ashwagandha': 'NIH LiverTox (2019, updated 2024). Ashwagandha. National Institute of Diabetes and Digestive and Kidney Diseases.'
   };
 
   const SYSTEMS = {
@@ -343,11 +349,73 @@
       src: ['reynolds-2019']
     });
 
-    if (food.cat === 'Grains & Bread' && /oat|hafer|barley|gerste|porridge/i.test(name) && g >= 30) add({
+    /* ---------------- what the ingredients themselves do ---------------- */
+    const sig = window.Hormones ? Hormones.signals(food) : new Set();
+
+    if (((food.cat === 'Grains & Bread' && /oat|hafer|barley|gerste|porridge/i.test(name)) || sig.has('BETA_GLUCAN')) && g >= 30) add({
       id: 'betaglucan', system: 'heart', tone: 'good', evidence: 'strong',
-      title: 'Beta-glucan',
+      title: 'Beta-glucan (oats, barley)',
       text: 'Soluble oat and barley fibre that binds bile acids and lowers LDL cholesterol; 3 g a day (about 75 g of oats) carries an approved EU health claim.',
       src: ['efsa-betaglucan']
+    });
+
+    if (sig.has('COCOA') && !isSupplement) add({
+      id: 'cocoa', system: 'heart', tone: 'good', evidence: 'moderate',
+      title: 'Cocoa flavanols',
+      text: 'Cocoa flavanols help keep blood vessels elastic (an approved EU claim at 200 mg a day — about 10 g of high-flavanol cocoa or 2.5 g of extract). ' +
+        'Milk chocolate carries far less, and the sugar and fat come with it.',
+      src: ['efsa-cocoa']
+    });
+
+    if (sig.has('GREEN_TEA')) add({
+      id: 'greentea', system: isSupplement ? 'liver' : 'heart', tone: isSupplement ? 'caution' : 'info', evidence: 'moderate',
+      title: 'Green tea catechins (EGCG)',
+      text: isSupplement
+        ? 'Concentrated green tea extract providing 800 mg EGCG or more a day raised liver enzymes in trials; EFSA found no safe level for extracts taken on an empty stomach.'
+        : 'Brewed green tea is safe and brings catechins plus some caffeine; the liver concerns apply only to concentrated extracts.',
+      src: ['efsa-egcg']
+    });
+
+    if (sig.has('GARLIC') && g >= 3) add({
+      id: 'garlic', system: 'heart', tone: 'good', evidence: 'moderate',
+      title: 'Garlic',
+      text: 'Garlic compounds (allicin) lowered blood pressure by around 8/6 mmHg in people with high blood pressure, mostly as aged garlic extract.',
+      src: ['ried-2016']
+    });
+
+    if (sig.has('GINGER')) add({
+      id: 'ginger', system: 'gut', tone: 'good', evidence: 'moderate',
+      title: 'Ginger',
+      text: 'Ginger speeds stomach emptying and eases nausea, including pregnancy nausea, at around 1 g a day.',
+      src: ['viljoen-2014']
+    });
+
+    if (sig.has('TURMERIC')) add({
+      id: 'turmeric', system: 'gut', tone: 'info', evidence: 'limited',
+      title: 'Turmeric (curcumin)',
+      text: 'Curcumin extracts eased joint pain in small trials, but curcumin from food is poorly absorbed unless taken with black pepper (piperine) and fat.',
+      src: ['daily-2016']
+    });
+
+    if (sig.has('CRUCIFEROUS') && g >= 50 && !isSupplement) add({
+      id: 'cruciferous', system: 'liver', tone: 'good', evidence: 'moderate',
+      title: 'Cabbage-family vegetables',
+      text: 'Broccoli, kale, cabbage and rocket supply glucosinolates (sulforaphane, indole-3-carbinol) that switch on the liver’s detoxification enzymes and shift estrogen breakdown toward its milder forms.',
+      src: ['fowke-2000']
+    });
+
+    if (sig.has('OILY_FISH') && !(amt('epadha') >= 200) && !isSupplement && g >= 50) add({
+      id: 'oilyfish', system: 'heart', tone: 'good', evidence: 'strong',
+      title: 'Oily fish',
+      text: 'Salmon, mackerel, herring and sardines are the richest food sources of the omega-3 fats EPA and DHA and among the few of vitamin D.',
+      src: ['efsa-fats', 'efsa-vitd']
+    });
+
+    if (sig.has('ADAPTOGEN') || sig.has('ASHWAGANDHA')) add({
+      id: 'adaptogen', system: 'liver', tone: 'caution', evidence: 'limited',
+      title: 'Herbal extract (adaptogen)',
+      text: 'Ashwagandha, rhodiola, ginseng, maca and similar extracts have small or mixed effects in trials. Rare but serious liver injury is reported for ashwagandha; avoid in pregnancy and with thyroid medication.',
+      src: ['livertox-ashwagandha']
     });
 
     const pro = amt('protein');

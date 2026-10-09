@@ -82,7 +82,13 @@ test('the app and the pack builder shard barcodes with the same function', () =>
   assert.ok(tool.includes('OffMap.shardOf(rec[0], SHARDS)'), 'pack builder must shard with OffMap.shardOf');
   const idx = JSON.parse(read('data/de/index.json'));
   assert.strictEqual(idx.hash, 'fnv1a-fmix32');
-  return LocalPack.info().catch(() => null).then(() => {
+  // Serve the real index.json so LocalPack uses the pack's own shard count.
+  const realFetch = global.fetch;
+  global.fetch = async url => /index.json/.test(String(url))
+    ? { ok: true, json: async () => idx } : (realFetch ? realFetch(url) : { ok: false });
+  return LocalPack.info().catch(() => null).then(m => {
+    global.fetch = realFetch;
+    assert.ok(m && m.shards === idx.shards, 'LocalPack read the pack index');
     for (const code of ['4061458012171', '20816575', '3017620422003', '0012345678905']) {
       assert.strictEqual(LocalPack.shardOf(code), OffMap.shardOf(code, idx.shards));
     }

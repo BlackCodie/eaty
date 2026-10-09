@@ -127,7 +127,12 @@
   const FLAG = {
     PALM_FREE: 1, VEGAN: 2, VEGETARIAN: 4, PALM: 8, ADDED_SUGAR: 16, SWEETENER: 32,
     FLAVOURING: 64, HYDROGENATED: 128, WHOLEGRAIN: 256, CAFFEINE: 512, SOY: 1024,
-    LICORICE: 2048, LIVE_CULTURES: 4096, SEED_OIL: 8192, ALCOHOL: 16384, FRUIT_JUICE: 32768
+    LICORICE: 2048, LIVE_CULTURES: 4096, SEED_OIL: 8192, ALCOHOL: 16384, FRUIT_JUICE: 32768,
+    // Hormone- and physiology-relevant ingredients (js/body.js reads these).
+    FLAX: 1 << 16, MINT: 1 << 17, HOPS: 1 << 18, CINNAMON: 1 << 19, GINGER: 1 << 20,
+    TURMERIC: 1 << 21, GREEN_TEA: 1 << 22, COCOA: 1 << 23, GARLIC: 1 << 24, CRUCIFEROUS: 1 << 25,
+    ADAPTOGEN: 1 << 26, MILK_PROTEIN: 1 << 27, BETA_GLUCAN: 1 << 28, OILY_FISH: 1 << 29,
+    SUPPLEMENT: 1 << 30
   };
 
   const RX = {
@@ -143,8 +148,30 @@
     cultures: /ferment|culture|lactobacillus|bifidobacter|probiotic/,
     seedOil: /^en:(sunflower-oil|rapeseed-oil|canola-oil|soya-oil|soybean-oil|corn-oil|cottonseed-oil|safflower-oil|grapeseed-oil|vegetable-oil|vegetable-oils)$/,
     alcohol: /^en:(alcohol|ethanol|wine|beer|rum|brandy|whisky|vodka|liqueur|spirit)$/,
-    juice: /fruit-juice|juice-concentrate|concentrated-.*-juice|-juice$/
+    juice: /fruit-juice|juice-concentrate|concentrated-.*-juice|-juice$/,
+    // Ingredient tags come in English taxonomy form or, when untranslated, German.
+    flax: /^[a-z]{2}:.*(linseed|flaxseed|flax-seed|leinsamen|leinsaat|leinöl|leinoel)/,
+    mint: /^[a-z]{2}:(peppermint|spearmint|mint|minze|pfefferminz|krauseminze)/,
+    hops: /^[a-z]{2}:(hops|hop|hop-extract|hopfen|hopfenextrakt)$/,
+    cinnamon: /^[a-z]{2}:(cinnamon|ceylon-cinnamon|cassia|zimt|ceylon-zimt|cassia-zimt)/,
+    ginger: /^[a-z]{2}:(ginger|ingwer)/,
+    turmeric: /^[a-z]{2}:(turmeric|curcuma|curcumin|kurkuma)/,
+    greenTea: /^[a-z]{2}:(green-tea|matcha|grüntee|gruentee|grüner-tee|gruener-tee)/,
+    cocoa: /^[a-z]{2}:(cocoa|cocoa-mass|cocoa-paste|cocoa-powder|fat-reduced-cocoa|fat-reduced-cocoa-powder|cocoa-solids|kakao|kakaomasse|kakaopulver|stark-entöltes-kakaopulver)$/,
+    garlic: /^[a-z]{2}:(garlic|knoblauch)/,
+    cruciferous: /^[a-z]{2}:(broccoli|brokkoli|kale|grünkohl|gruenkohl|cabbage|white-cabbage|red-cabbage|weisskohl|weißkohl|rotkohl|cauliflower|blumenkohl|brussels-sprouts|rosenkohl|kohlrabi|rocket|rucola|watercress|brunnenkresse|bok-choy|pak-choi|savoy-cabbage|wirsing|sauerkraut)/,
+    adaptogen: /^[a-z]{2}:.*(ashwagandha|withania|maca|ginseng|rhodiola|tribulus|fenugreek|bockshornklee|shatavari|tongkat)/,
+    milkProtein: /^[a-z]{2}:(whey|whey-protein|whey-protein-concentrate|whey-protein-isolate|milk-protein|milk-proteins|milk-protein-concentrate|casein|caseinate|calcium-caseinate|sodium-caseinate|molkenprotein|molkeneiweiß|milcheiweiß|milcheiweiss|milchprotein)/,
+    betaGlucan: /^[a-z]{2}:(oat|oats|oat-flakes|rolled-oats|oatmeal|oat-bran|oat-flour|wholegrain-oat-flakes|whole-oat-flakes|barley|barley-flakes|hafer|haferflocken|vollkornhaferflocken|haferkleie|gerste|gerstenflocken)$/,
+    oilyFish: /^[a-z]{2}:(fish-oil|cod-liver-oil|algae-oil|algal-oil|krill-oil|salmon|mackerel|herring|sardine|sardines|anchovy|anchovies|lachs|makrele|hering|sardinen|sardellen|fischöl|lebertran|algenöl)/,
+    supplement: /^en:(dietary-supplements|food-supplements|vitamins|minerals|vitamin-supplements|mineral-supplements|multivitamins|omega-3-supplements|protein-supplements)$/
   };
+  const INGREDIENT_FLAGS = [
+    ['flax', 'FLAX'], ['mint', 'MINT'], ['hops', 'HOPS'], ['cinnamon', 'CINNAMON'], ['ginger', 'GINGER'],
+    ['turmeric', 'TURMERIC'], ['greenTea', 'GREEN_TEA'], ['cocoa', 'COCOA'], ['garlic', 'GARLIC'],
+    ['cruciferous', 'CRUCIFEROUS'], ['adaptogen', 'ADAPTOGEN'], ['milkProtein', 'MILK_PROTEIN'],
+    ['betaGlucan', 'BETA_GLUCAN'], ['oilyFish', 'OILY_FISH']
+  ];
 
   /** Bitmask of ingredient facts (see FLAG) from the OFF ingredient analysis. */
   function ingredientFlags(p) {
@@ -170,12 +197,58 @@
       if (RX.seedOil.test(t)) f |= FLAG.SEED_OIL;
       if (RX.alcohol.test(t)) f |= FLAG.ALCOHOL;
       if (RX.juice.test(t)) f |= FLAG.FRUIT_JUICE;
+      for (const [rx, bit] of INGREDIENT_FLAGS) if (RX[rx].test(t)) f |= FLAG[bit];
+    }
+    for (const c of p.categories_tags || []) {
+      if (RX.supplement.test(c)) f |= FLAG.SUPPLEMENT;
+      if (c === 'en:beers' || c === 'en:alcoholic-beverages-beers') f |= FLAG.HOPS | FLAG.ALCOHOL;
     }
     for (const a of p.additives_tags || []) {
       if (/^en:e9(5|6)\d/.test(a)) f |= FLAG.SWEETENER;
     }
     if (f & FLAG.PALM) f &= ~FLAG.PALM_FREE;
     return f;
+  }
+
+  /* ------------------------------------------------------------ supplements */
+  /** What form one dose takes, from the serving text, name and categories. */
+  function supplementUnit(p) {
+    const t = [p.serving_size, p.product_name_de, p.product_name, (p.categories_tags || []).join(' ')].join(' ').toLowerCase();
+    if (/softgel/.test(t)) return 'softgel';
+    if (/kapsel|capsule|caps\b/.test(t)) return 'capsule';
+    if (/gumm|fruchtgumm|bärchen|baerchen/.test(t)) return 'gummy';
+    if (/tropfen|drop/.test(t)) return 'drop';
+    if (/spray/.test(t)) return 'spray';
+    if (/sachet|beutel|stick|portionsbeutel/.test(t)) return 'sachet';
+    if (/pulver|powder|scoop|messlöffel|messloeffel|shake/.test(t)) return 'scoop';
+    if (/\bml\b|trinkampulle|ampulle|shot|liquid|flüssig/.test(t)) return 'ml';
+    return 'tablet';
+  }
+
+  /**
+   * One dose of a supplement in app units: { unitKey, doseLabel, doseG, per }.
+   * Uses the label's per-serving values, or per-100 g values × serving size.
+   */
+  function supplementDose(p) {
+    p = p || {};
+    const nm = p.nutriments || {};
+    const sq = Number(p.serving_quantity) > 0 ? Number(p.serving_quantity) : 0;
+    const raw = {};
+    Object.keys(nm).forEach(k => {
+      const m = /^(.+)_(serving|100g)$/.exec(k);
+      if (!m) return;
+      const v = Number(nm[k]);
+      if (!isFinite(v) || v <= 0) return;
+      if (m[2] === 'serving') raw[m[1] + '_100g'] = v;
+      else if (sq && raw[m[1] + '_100g'] === undefined && nm[m[1] + '_serving'] === undefined) raw[m[1] + '_100g'] = v * sq / 100;
+    });
+    const n = nutrientsFrom(raw).n;
+    const per = {};
+    Object.keys(n).forEach(k => {
+      const v = n[k];
+      if (v > 0 && isFinite(v)) per[k] = v >= 100 ? Math.round(v) : Math.round(v * 1000) / 1000;
+    });
+    return { unitKey: supplementUnit(p), doseLabel: String(p.serving_size || '').slice(0, 40), doseG: sq, per };
   }
 
   /* -------------------------------------------------------------- allergens */
@@ -234,6 +307,6 @@
   return {
     shardOf, CATS, UMBRELLA, cleanTags, catIndex, catName: tags => CATS[catIndex(tags)], isLiquid,
     NUTRIENT_MAP, MICRO_KEYS, nutrientsFrom,
-    FLAG, ingredientFlags, ALLERGENS, allergenMask, allergenNames, additiveCodes
+    FLAG, ingredientFlags, ALLERGENS, allergenMask, allergenNames, additiveCodes, supplementUnit, supplementDose
   };
 });

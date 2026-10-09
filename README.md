@@ -55,6 +55,17 @@ chocolate D 35, salami E 22.
 reweighted, and the score shows what share of the criteria it was judged on. Estimated nutrients are
 never used for the score.
 
+**Hormone map** — `js/hormones.js` shows, for any portion and for the whole day, how food moves
+insulin, the fullness hormones GLP-1 and PYY, the hunger hormone ghrelin, cortisol, adrenaline,
+testosterone, estrogen, the thyroid hormones, melatonin, IGF-1, aldosterone and the vitamin D
+hormone — with an arrow, the reasons, the evidence grade and the sources. It reads three things:
+nutrients (glycemic load, protein, fibre, free sugar, zinc, iodine, selenium, vitamin D …),
+compounds (caffeine, alcohol, soy isoflavones, glycyrrhizin) and **hormone-relevant ingredients
+detected in the ingredient list** — flax, mint, hops, cinnamon, ginger, turmeric, green tea, cocoa,
+garlic, cabbage-family vegetables, whey and milk protein, oats and barley, oily fish and adaptogens
+such as ashwagandha, fenugreek, maca and tribulus. "No effect" is reported as clearly as an effect:
+soy does not lower testosterone, tribulus does not raise it.
+
 **What it does to your body** — `js/body.js` turns a portion (or a whole day) into effects on
 hormones, blood sugar, heart, gut, brain and sleep, liver, muscle, bones, thyroid, long-term risk and
 medicines. Examples: caffeine and its half-life (EFSA 2015, Drake 2013), glycemic load and the
@@ -85,12 +96,22 @@ water, so this carries across correctly. Estimates never overwrite a declared va
 meals, copy a meal or a whole day, save a meal as a recipe, exercise log, water tracking, notes.
 
 **Supplements** — amounts **per capsule, tablet, softgel, gummy, scoop, sachet, ml, drop or spray**,
-vitamins A, D and E in **IU** with the conversion done for you. Mark what you take daily and it
-becomes a stack on Today with one-tap "Take all"; attach the barcode and scanning the tub logs a
-dose immediately. Micronutrient bars split food (green) from pills (violet).
+vitamins A, D and E in **IU** with the conversion done for you. **Scanning a supplement** looks it up
+in a database of ~3,600 supplements sold in Germany, Austria and Switzerland (Mivolis, Altapharma,
+Doppelherz, Abtei, Das Gesunde Plus, Tetesept, Sunday Natural, Centrum, Orthomol, Krüger, the
+supermarket brands …) and opens the editor already filled in with what one tablet or capsule
+contains, where the label lists it; for anything else, 25 one-tap templates (D3, D3 + K2,
+magnesium, zinc, omega-3, B12, B complex, multivitamin, iron, calcium, folic acid, iodine,
+selenium …) fill the dose in. Confirm once and every later scan of that tub logs a dose instantly.
+Mark what you take daily and it becomes a stack on Today with one-tap "Take all". Micronutrient bars
+split food (green) from pills (violet).
+
+**Easy portions** — Open Food Facts' bulk data has no serving sizes, so pack products are offered
+a typical portion for their kind (a yoghurt pot, a glass, a slice, a handful of crisps, a shot of
+spirits) next to the whole pack and 100 g.
 
 **Barcode scanning** — the Scan orb resolves a code against, in order: foods already on your device,
-the **bundled pack of ~387,000 German supermarket products** (works with no signal),
+the **bundled pack of ~546,000 German supermarket products** (works with no signal),
 [Open Food Facts](https://world.openfoodfacts.org) live (~4 million products, with ingredients,
 additives and allergens), then USDA FoodData Central's branded set. Every GTIN encoding is tried and
 the check digit validated. Scanned products are saved on the device. If a product has no nutrition
@@ -164,7 +185,7 @@ so edits show on reload; deployed builds are cache-first and update when `VERSIO
 npm test
 ```
 
-runs the Node test suite (81 tests) against the same modules the app ships.
+runs the Node test suite (92 tests) against the same modules the app ships.
 
 ---
 
@@ -193,7 +214,8 @@ js/
   nutrition.js        Targets, reference intakes, nutrient maths, daily scoring
   quality.js          The Eaty Score (shared with the pack builder)
   estimate.js         Micronutrient estimates for packaged products
-  body.js             Physiology and hormone effects, per portion and per day, with sources
+  body.js             Physiology effects by body system, per portion and per day, with sources
+  hormones.js         The hormone map: 12 hormones, from nutrients, compounds and ingredients
   charts.js           Dependency-free SVG rings, line and bar charts
   ui.js               Sheets, action sheets, toasts, confirms
   barcode.js          BarcodeDetector when available, else ZXing
@@ -209,6 +231,7 @@ js/
 
 tools/
   fetch-de.js         Harvests the German market from Open Food Facts
+  fetch-supplements.js  Builds the supplement database with per-dose amounts
   merge-pack.js       Carries European products over from an older pack
   reshard.js          Rewrites the pack's shards after a hash or shard-count change
   build-top.js        Builds the "better choices" and category ranking index
@@ -235,36 +258,43 @@ retried in their EAN-13 form.
 | | Source | Size | Works offline |
 |---|---|---|---|
 | Built in | bundled with the app | 386 foods, 40 nutrients and compounds | yes |
-| **German products** | **bundled pack, `data/de/`** | **~387,000 products** | **yes** |
+| **German products** | **bundled pack, `data/de/`** | **~546,000 products** | **yes** |
+| Supplements | `data/de/supplements.json` | ~3,600 products, per-dose labels | yes |
 | Packaged goods | Open Food Facts | ~4 million products | after first scan |
 | Generic foods | USDA FoodData Central | ~600k, 100+ analysed nutrients each | after first use |
 
 ### The German product pack
 
-`data/de/` ships **~387,000 products** for the German market — every product Open Food Facts lists
-as sold in Germany (~304,000), Austria-only and German-labelled products from neighbouring
-countries, and the house brands of German retailers (Rewe and ja!, Kaufland and K-Classic, Aldi and
-Milsani, Lidl and Milbona, Edeka and Gut&Günstig, Penny, Netto, Norma, dm, Rossmann, Alnatura …)
-where they are sold across the border with the same EAN.
+`data/de/` ships **~546,000 products** for the German market:
+
+- every product Open Food Facts lists as sold in Germany (~304,000);
+- Austria-only and German-labelled products from neighbouring countries;
+- every product made by a German, Austrian or Swiss company (barcode prefixes 400–440, 900–919,
+  760–769) that is only listed abroad — the same EAN is very often on German shelves;
+- the house brands of German retailers (Rewe and ja!, Kaufland and K-Classic, Aldi and Milsani,
+  Lidl and Milbona, Edeka and Gut&Günstig, Penny, Netto, Norma, dm, Rossmann, Alnatura …) and
+  ~130 national brands where they are sold across the border with the same EAN;
+- dietary supplements sold in the EU.
 
 The search API stops at 10,000 results per query, so the harvester splits the market into
-barcode-prefix ranges small enough to page through completely — 872 requests walk the whole lot.
-**260,000** products carry a full nutrition label; the rest are kept as name-only records, so a scan
+barcode-prefix ranges small enough to page through completely — about 1,600 requests walk the whole
+lot. **382,000** products carry a full nutrition label; the rest are kept as name-only records, so a scan
 still names the product and shows its additives and processing, then offers to take the label once.
 Each record carries the label nutrients, extra declared nutrients, NOVA group, Nutri-Score,
 E-numbers, the 14 EU allergens, ingredient flags and the product's category.
 
 Measured coverage: **all 1,000 of the most-scanned German products** on Open Food Facts are in the
-pack (98% with nutrition), and the 100 most-scanned products of ja!, Milbona, Milsani, Gut&Günstig,
-REWE Beste Wahl, dmBio, Alnatura and enerBio are all there.
+pack (98% with nutrition); the 100 most-scanned products of ja!, Milbona, Milsani, Gut&Günstig,
+REWE Beste Wahl, dmBio, Alnatura and enerBio are all there, K-Classic 98 and Penny 97 (the gaps are
+products from their Czech and Romanian stores).
 
-It is split into 128 evenly balanced shards (~112 KB gzipped each; FNV-1a with a murmur finaliser).
+It is split into 160 evenly balanced shards (~130 KB gzipped each; FNV-1a with a murmur finaliser).
 A lookup fetches only the shard that could contain the code, and shards are cached as you go.
-**Settings → Food databases → Save the whole pack offline** pulls all of them (about 14 MB
-transferred, 42 MB on disk).
+**Settings → Food databases → Save the whole pack offline** pulls all of them (about 21 MB
+transferred, 60 MB on disk).
 
 **Ranking.** Every product with enough label data is scored with the Eaty Score at build time and
-ranked within its Open Food Facts category (1,700+ categories, 142,000 ranked products), so the
+ranked within its Open Food Facts category (2,100+ categories, 197,000 ranked products), so the
 product page can say "better than 82% of hazelnut spreads", and "better choices" are always the
 same kind of product and meaningfully better.
 

@@ -36,7 +36,7 @@ function install() {
   [
     'js/core.js', 'js/store.js', 'js/offmap.js', 'js/additives.js',
     'js/foods.js', 'js/foods-de.js', 'js/foods-extra.js', 'js/foods-compounds.js',
-    'js/nutrition.js', 'js/quality.js', 'js/estimate.js', 'js/body.js', 'js/ui.js',
+    'js/nutrition.js', 'js/quality.js', 'js/estimate.js', 'js/body.js', 'js/hormones.js', 'js/ui.js',
     'js/barcode.js', 'js/offapi.js', 'js/fdcapi.js', 'js/localpack.js',
     'js/foodsheet.js', 'js/supplements.js'
   ].forEach(rel => {

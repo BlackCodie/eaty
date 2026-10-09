@@ -34,9 +34,9 @@
           </div>
           <div class="stack" style="gap:10px">
             ${[
-              ['barcode', 'Scan anything', '387,000 German supermarket products offline, millions more online'],
+              ['barcode', 'Scan anything', '546,000 German supermarket products offline, millions more online'],
               ['star', 'Eaty Score', 'How good a product really is: nutrition, additive risk, processing, ingredients'],
-              ['pulse', 'What it does to your body', 'Hormones, blood sugar, heart, gut and sleep — with the evidence'],
+              ['pulse', 'What it does to your body', 'Your hormones, blood sugar, heart, gut and sleep — with the evidence'],
               ['leaf', 'Every nutrient', '21 vitamins and minerals plus caffeine, omega-3, nitrate and more']
             ].map(([ic, t, d]) => `<div class="card" style="display:flex;gap:13px;align-items:center;padding:13px 14px">
               <span style="flex:none;width:38px;height:38px;border-radius:12px;background:var(--brand-dim);

@@ -197,6 +197,8 @@
       ingredientsText,
       nutriscore: String(p.nutriscore_grade || '').toUpperCase().replace(/[^A-E]/g, ''),
       flags,
+      // Supplements: what one tablet / capsule / scoop contains, for the editor.
+      suppDose: (flags & OffMap.FLAG.SUPPLEMENT) ? OffMap.supplementDose(p) : null,
       // Specific category tags, so the product can be compared with its own kind.
       tags: (p.categories_tags || []).filter(t => !OffMap.UMBRELLA.test(t)).slice(-10),
       palmOilFree: !!(flags & OffMap.FLAG.PALM_FREE),

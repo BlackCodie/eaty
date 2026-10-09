@@ -234,7 +234,15 @@
       if (mine) return { food: mine, from: 'local' };
     }
 
-    // 1. The bundled German supermarket pack — instant, and works with no
+    // 1. A supplement whose label lists vitamins or minerals per tablet,
+    //    capsule or scoop opens the supplement editor ready-filled.
+    let supp = null;
+    try { supp = await LocalPack.supplement(code); } catch (_) {}
+    // Dose-sized (a tablet, capsule or shot, not a bar or a bottle) and not a sweet in disguise.
+    const doseSized = s => s && s.micros > 0 && !(s.doseG > 15) && !((s.per && s.per.kcal) > 25);
+    if (doseSized(supp)) return { supp, from: 'supplements' };
+
+    // 2. The bundled German supermarket pack — instant, and works with no
     //    signal, which is the normal state of affairs inside a supermarket.
     let nameOnly = null;
     try {
@@ -251,7 +259,13 @@
     for (const v of codes) {
       try {
         const live = await OFF.lookup(v);
+        // A live supplement record with per-dose vitamins goes to the editor too.
+        const sd = live.food.suppDose;
+        if (sd && Object.keys(sd.per).length && !(sd.doseG > 15) && !(sd.per.kcal > 25)) {
+          return { supp: Object.assign({ code: v, name: live.food.name, brand: live.food.brand, micros: 1 }, sd), from: 'supplements' };
+        }
         if (nameOnly && live.food.needsNutrition) return { food: nameOnly, from: 'pack' };
+        if (supp && live.food.needsNutrition) return { supp, from: 'supplements' };
         return live;
       } catch (err) {
         lastErr = err;
@@ -262,6 +276,7 @@
       }
     }
     if (nameOnly) return { food: nameOnly, from: 'pack' };
+    if (supp) return { supp, from: 'supplements' };
     if (netDown) throw lastErr;
 
     for (const v of codes) {
@@ -309,6 +324,24 @@
     catch (e) { err = e; }
     busy.close();
     await App.sleep(220);
+
+    // A supplement from the database: confirm the label once, then every
+    // later scan of the tub logs a dose instantly.
+    if (result && result.supp) {
+      const sp = result.supp;
+      UI.toast(sp.micros ? 'Supplement found — check the label' : 'Supplement found — add its label', 'ok');
+      Supplements.editor({
+        name: sp.name, brand: sp.brand, barcode: code,
+        prefill: { unitKey: sp.unitKey, per: sp.per || {} },
+        async onSaved(rec) {
+          await Supplements.take(rec, o.date || App.date.today(), 1);
+          App.haptic('ok');
+          UI.toast(rec.name + ' · 1 ' + rec.unitLabel + ' logged', 'ok');
+          App.refresh();
+        }
+      });
+      return;
+    }
 
     if (result) {
       const { food, from } = result;

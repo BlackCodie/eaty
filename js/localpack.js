@@ -108,12 +108,12 @@
     [/käse|kaese|cheese|gouda|emmentaler|mozzarella|camembert|feta|frischkäse/, 30, 'portion'],
     [/salami|schinken|\bham\b|aufschnitt|mortadella|lyoner|leberwurst|bacon|speck|teewurst/, 30, 'portion'],
     [/bratwurst|würstchen|wuerstchen|wiener|frankfurter|bockwurst|wurst/, 100, 'portion'],
-    [/schokolade|chocolate|zartbitter|vollmilch|praline|riegel|\bbars?\b/, 25, 'portion'],
+    [/schokolade|chocolate|zartbitter|vollmilch|praline|riegel|\bbars?\b|milka|ritter sport|lindt|merci|toblerone|kinder|hachez|moser roth|choceur|schogetten|ganznuss|nougat/, 25, 'portion'],
     [/chips|crisps|flips|nachos|popcorn|cracker|brezel|salzstangen/, 30, 'handful'],
     [/nüsse|nuesse|nuts|mandeln|almonds|cashew|erdnüsse|peanuts|studentenfutter|trail mix|pistazien|walnüsse/, 30, 'handful'],
-    [/gummi|fruchtgummi|bonbon|lakritz|weingummi|candy|marshmallow/, 25, 'handful'],
+    [/gummi|fruchtgummi|bonbon|lakritz|weingummi|candy|marshmallow|haribo|katjes|trolli|maoam/, 25, 'handful'],
     [/keks|kekse|cookie|biscuit|waffel|wafer|gebäck|kuchen|cake|muffin|croissant/, 40, 'piece'],
-    [/aufstrich|nutella|nuss-nougat|marmelade|konfitüre|\bjam\b|honig|honey|erdnussbutter|peanut butter/, 20, 'spread'],
+    [/aufstrich|nutella|nuss-nougat|nusscreme|schokocreme|nougatcreme|marmelade|konfitüre|\bjam\b|honig|honey|erdnussbutter|peanut butter/, 20, 'spread'],
     [/butter|margarine|\böl\b|\boil\b|ghee/, 10, 'portion'],
     [/ketchup|mayo|senf|mustard|dressing|sauce|soße|sosse|pesto|\bdip\b/, 20, 'portion'],
     [/\beis\b|eiscreme|ice cream|gelato|sorbet/, 100, 'scoop']
@@ -165,14 +165,19 @@
     const servings = [];
     if (row[F.SERV] > 0) servings.push({ label: 'Serving (' + row[F.SERV] + ' ' + unit + ')', g: row[F.SERV] });
     else {
-      const tp = typicalPortion(row[F.NAME], !!row[F.LIQUID], row[F.PKG], CATS[row[F.CAT]]);
+      // The name decides first; the brand (Milka, Haribo …) only when the name says nothing.
+      const tp = typicalPortion(row[F.NAME], !!row[F.LIQUID], row[F.PKG], null) ||
+        typicalPortion(row[F.NAME] + ' ' + (row[F.BRAND] || ''), !!row[F.LIQUID], row[F.PKG], CATS[row[F.CAT]]);
       if (tp && tp.g !== row[F.PKG]) servings.push(tp);
     }
+    // No known portion and a big pack: offer 100 g first rather than the whole pack.
+    const bigPack = !servings.length && row[F.PKG] > (row[F.LIQUID] ? 500 : 150);
     if (row[F.PKG] > 0 && row[F.PKG] !== row[F.SERV]) {
       servings.push({ label: 'Whole pack (' + row[F.PKG] + ' ' + unit + ')', g: row[F.PKG] });
     }
     servings.push({ label: '100 ' + unit, g: 100 });
     servings.push({ label: '1 ' + unit, g: 1 });
+    if (bigPack) servings.unshift(servings.splice(servings.findIndex(sv => sv.g === 100), 1)[0]);
 
     const name = row[F.NAME];
     const brand = row[F.BRAND];
@@ -233,12 +238,45 @@
    * offline — otherwise it would quietly pull 10 MB to answer one query.
    * Scans shards in turn and stops as soon as it has enough matches.
    */
+  /* Quick search index (tools/build-names.js): the most-scanned products in
+     Germany as full records, so name search works with no pack download. */
+  let namesPromise = null;
+  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
+  function loadNames() {
+    if (!namesPromise) {
+      namesPromise = info().then(() => fetch(DIR + 'names.json' + ver()))
+        .then(r => (r && r.ok ? r.json() : null)).catch(() => null)
+        .then(j => {
+          if (!j || !Array.isArray(j.rows)) { namesPromise = null; return null; }
+          return j.rows.map(r => ({ row: r, hay: norm(r[1] + ' ' + (r[2] || '')) }));
+        });
+    }
+    return namesPromise;
+  }
+
+  /** Name search over the quick index; most-scanned first, name-start matches ahead. */
+  async function quickSearch(query, limit) {
+    const q = norm(query).trim();
+    if (q.length < 2) return [];
+    const list = await loadNames();
+    if (!list) return [];
+    const words = q.split(/\s+/).filter(Boolean);
+    const starts = [], rest = [];
+    for (const e of list) {
+      if (!words.every(w => e.hay.indexOf(w) !== -1)) continue;
+      (e.hay.startsWith(words[0]) ? starts : rest).push(e);
+      if (starts.length + rest.length >= 400) break;
+    }
+    return starts.concat(rest).slice(0, limit || 30).map(e => toFood(e.row));
+  }
+
   async function search(query, limit) {
     const m = await info();
     if (!m) return [];
     const q = String(query || '').toLowerCase().trim();
     if (q.length < 2) return [];
-    if (!(await isDownloaded())) return [];
+    // Without the whole pack on the device, search the quick index instead.
+    if (!(await isDownloaded())) return quickSearch(query, limit);
 
     const words = q.split(/\s+/).filter(Boolean);
     const max = limit || 30;
@@ -436,7 +474,7 @@
       if (onProgress) onProgress(done, m.shards, bytes);
     }
     // The alternatives index and category names, so "better choices" work offline too.
-    for (const extra of ['top.json', 'types.json', 'supplements.json']) {
+    for (const extra of ['top.json', 'types.json', 'supplements.json', 'names.json']) {
       try {
         const res = await fetch(DIR + extra + ver());
         if (res.ok) bytes += (await res.arrayBuffer()).byteLength;
@@ -458,5 +496,5 @@
     } catch (_) { return false; }
   }
 
-  window.LocalPack = { typicalPortion, lookup, supplement, search, alternatives, rank, loadTop, loadTypes, typeOf, typeLabel, stats, info, toFood, shardOf, download, isDownloaded, DIR };
+  window.LocalPack = { quickSearch, loadNames, typicalPortion, lookup, supplement, search, alternatives, rank, loadTop, loadTypes, typeOf, typeLabel, stats, info, toFood, shardOf, download, isDownloaded, DIR };
 })();

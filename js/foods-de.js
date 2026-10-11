@@ -242,4 +242,73 @@
   };
 
   if (window.FoodDB && FoodDB.extend) FoodDB.extend(ROWS, ALIASES);
+
+  /* The app speaks English. German staples keep their German name in brackets
+     where it is what the packet says; ids (and so diary history) are unchanged,
+     and the German words stay searchable. */
+  const ENGLISH = {
+    'f-magerquark': 'Quark, low-fat (Magerquark)',
+    'f-speisequark-20': 'Quark, 20% fat (Speisequark)',
+    'f-speisequark-40': 'Quark, 40% fat (Speisequark)',
+    'f-skyr-natur': 'Skyr, plain',
+    'f-buttermilch': 'Buttermilk',
+    'f-schlagsahne-30': 'Whipping cream, 30%',
+    'f-schmand-24': 'Sour cream, 24% (Schmand)',
+    'f-gouda-mittelalt': 'Gouda, medium-aged',
+    'f-emmentaler': 'Emmental cheese',
+    'f-butterkase': 'Butter cheese (Butterkäse)',
+    'f-harzer-kase': 'Harz cheese, low-fat (Harzer Käse)',
+    'f-frischkase-doppelrahmstufe': 'Cream cheese, full-fat (Frischkäse)',
+    'f-vollkornbrot': 'Wholegrain bread (Vollkornbrot)',
+    'f-roggenmischbrot': 'Rye-wheat bread (Roggenmischbrot)',
+    'f-weizenbrotchen': 'Bread roll, white (Brötchen)',
+    'f-vollkornbrotchen': 'Bread roll, wholegrain (Vollkornbrötchen)',
+    'f-laugenbrezel': 'Soft pretzel (Laugenbrezel)',
+    'f-zwieback': 'Rusk (Zwieback)',
+    'f-spatzle-gekocht': 'Spätzle noodles, cooked',
+    'f-kartoffelklo-e': 'Potato dumplings (Kartoffelklöße)',
+    'f-maultaschen': 'Swabian ravioli (Maultaschen)',
+    'f-musli-fruchte': 'Muesli with fruit',
+    'f-bratwurst-gebraten': 'Bratwurst, fried',
+    'f-wiener-wurstchen': 'Frankfurter sausages (Wiener)',
+    'f-leberkase': 'Bavarian meat loaf (Leberkäse)',
+    'f-fleischwurst': 'Bologna sausage (Fleischwurst)',
+    'f-schwarzwalder-schinken': 'Black Forest ham',
+    'f-kochschinken': 'Cooked ham',
+    'f-schweineschnitzel-paniert': 'Pork schnitzel, breaded',
+    'f-currywurst-mit-so-e': 'Currywurst with sauce',
+    'f-doner-kebab-mit-fladenbrot': 'Doner kebab in flatbread',
+    'f-rotkohl': 'Red cabbage, braised (Rotkohl)',
+    'f-grunkohl-gekocht': 'Kale, cooked (Grünkohl)',
+    'f-feldsalat': 'Lamb’s lettuce (Feldsalat)',
+    'f-radieschen': 'Radishes',
+    'f-kartoffelsalat': 'Potato salad',
+    'f-bratkartoffeln': 'Fried potatoes (Bratkartoffeln)',
+    'f-marmelade-konfiture': 'Jam (Marmelade)',
+    'f-lebkuchen': 'Gingerbread (Lebkuchen)',
+    'f-apfelschorle': 'Apple spritzer (Apfelschorle)',
+    'f-weizenbier-hefeweizen': 'Wheat beer (Hefeweizen)',
+    'f-gluhwein': 'Mulled wine (Glühwein)',
+    'f-nuss-nougat-creme': 'Hazelnut cocoa spread (Nuss-Nougat-Creme)'
+  };
+  /* German serving words -> English. */
+  const SERVING_WORDS = [
+    [/\bBecher\b/g, 'tub'], [/\bPortion\b/g, 'portion'], [/\bGlas\b/g, 'glass'], [/\bEL\b/g, 'tbsp'],
+    [/\bTL\b/g, 'tsp'], [/\bScheiben\b/g, 'slices'], [/\bScheibe\b/g, 'slice'], [/\bStück\b/g, 'piece'],
+    [/\bBrezel\b/g, 'pretzel'], [/\bSchnitzel\b/g, 'schnitzel'], [/\bKnolle\b/g, 'bulb'],
+    [/\bFlasche\b/g, 'bottle'], [/\bTasse\b/g, 'cup'], [/\bDose\b/g, 'can'], [/\bPackung\b/g, 'pack']
+  ];
+  if (window.FoodDB) {
+    const extraSearch = {};
+    Object.keys(ENGLISH).forEach(id => {
+      const f = FoodDB.byId(id);
+      if (!f) return;
+      extraSearch[id] = ENGLISH[id].toLowerCase();
+      f.name = ENGLISH[id];
+    });
+    FoodDB.all().forEach(f => (f.servings || []).forEach(sv => {
+      SERVING_WORDS.forEach(([rx, en]) => { sv.label = sv.label.replace(rx, en); });
+    }));
+    FoodDB.extend([], extraSearch);
+  }
 })();

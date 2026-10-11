@@ -25,6 +25,16 @@
   let rendering = false;
   const root = document.documentElement;
 
+  /* Development: dev/iphone.html passes the device's safe-area insets, which
+     desktop browsers otherwise report as zero (?safe=top,bottom). */
+  (function simulateSafeArea() {
+    const m = /[?&]safe=(\d+),(\d+)/.exec(location.search);
+    if (!m) return;
+    root.style.setProperty('--safe-t', m[1] + 'px');
+    root.style.setProperty('--safe-b', m[2] + 'px');
+    root.classList.add('sim-device');
+  })();
+
   /* --------------------------------------------------------------- Theme */
   const mqDark = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -131,8 +141,10 @@
     const s = typeof view.sub === 'function' ? view.sub() : view.sub;
     sub.textContent = s || '';
     sub.hidden = !s;
-    App.$('#appbar-actions').innerHTML =
-      typeof view.actions === 'function' ? (view.actions() || '') : (view.actions || '');
+    const actions = App.$('#appbar-actions');
+    actions.innerHTML = typeof view.actions === 'function' ? (view.actions() || '') : (view.actions || '');
+    // The large title leaves room for the buttons beside it.
+    root.style.setProperty('--actions-w', actions.offsetWidth + 'px');
 
     const g = groupOf(App.state.tab);
     const nav = App.$('#subnav');
@@ -208,6 +220,8 @@
 
     requestPersistence();
     pruneStaleFoods();
+    // Fetch the quick search index once, quietly, so name search works offline later.
+    setTimeout(() => { try { LocalPack.loadNames(); } catch (_) {} }, 6000);
   };
 
   /**

@@ -371,6 +371,9 @@
           ? 'Found — label has macros only'
           : 'Found in Open Food Facts', 'ok');
       }
+      // Personal stop-warnings (allergen, diet, interaction) are announced at once.
+      const warn = window.Personal ? Personal.check(food, (food.servings[0] || { g: 100 }).g).find(w => w.level === 'stop') : null;
+      if (warn) { App.haptic('err'); UI.toast('⚠ ' + warn.title, 'err'); }
       FoodSheet.openPortion({ kind: 'food', data: food }, o, o.parent || null);
       return;
     }

@@ -36,9 +36,9 @@ function install() {
   [
     'js/core.js', 'js/store.js', 'js/offmap.js', 'js/additives.js',
     'js/foods.js', 'js/foods-de.js', 'js/foods-extra.js', 'js/foods-compounds.js',
-    'js/nutrition.js', 'js/quality.js', 'js/estimate.js', 'js/body.js', 'js/hormones.js', 'js/ui.js',
+    'js/nutrition.js', 'js/quality.js', 'js/estimate.js', 'js/body.js', 'js/hormones.js', 'js/personal.js', 'js/ui.js',
     'js/barcode.js', 'js/offapi.js', 'js/fdcapi.js', 'js/localpack.js',
-    'js/foodsheet.js', 'js/supplements.js'
+    'js/foodsheet.js', 'js/supplements.js', 'js/views/report.js'
   ].forEach(rel => {
     const code = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     vm.runInThisContext(code, { filename: rel });

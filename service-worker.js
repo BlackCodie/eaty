@@ -4,7 +4,7 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = 'eaty-v2.2.0';
+const VERSION = 'eaty-v2.3.0';
 const SHELL = VERSION + '-shell';
 const RUNTIME = VERSION + '-runtime';
 
@@ -32,6 +32,7 @@ const PRECACHE = [
   './js/estimate.js',
   './js/body.js',
   './js/hormones.js',
+  './js/personal.js',
   './js/charts.js',
   './js/ui.js',
   './js/barcode.js',
@@ -52,6 +53,7 @@ const PRECACHE = [
   './js/views/plan.js',
   './js/views/trends.js',
   './js/views/insights.js',
+  './js/views/report.js',
   './js/views/settings.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

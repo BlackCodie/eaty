@@ -26,6 +26,7 @@
     title: () => 'Insights',
     sub: () => App.date.label(date || App.date.today()),
     actions: () => `
+      <button class="appbar-btn" type="button" data-act="open-report" aria-label="Weekly report">${App.icon('list')}</button>
       <button class="appbar-btn" type="button" data-act="ins-prev" aria-label="Previous day">${App.icon('left')}</button>
       <button class="appbar-btn" type="button" data-act="ins-next" aria-label="Next day">${App.icon('right')}</button>`,
 

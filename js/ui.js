@@ -13,6 +13,7 @@
   const BACKGROUND = ['#appbar', '#views', '#tabbar', '#orb'];
   function syncInert() {
     const on = stack.length > 0;
+    document.body.classList.toggle('sheet-active', on);   // toasts move to the top over sheets
     BACKGROUND.forEach(sel => {
       const el = App.$(sel);
       if (!el) return;
@@ -206,7 +207,7 @@
       let done = false;
       const s = sheet({
         title: cfg.title || 'Are you sure?',
-        body: `<p class="muted" style="font-size:14.5px;line-height:1.5;padding:2px 2px 6px">${App.esc(cfg.message || '')}</p>`,
+        body: `<p class="muted" style="font-size:14.5px;line-height:1.5;padding:2px 2px 6px;white-space:pre-line">${App.esc(cfg.message || '')}</p>`,
         footer: `<button class="btn ghost" type="button" data-cf="0">${App.esc(cfg.cancelLabel || 'Cancel')}</button>
                  <button class="btn ${cfg.danger ? 'danger' : 'primary'}" type="button" data-cf="1">${App.esc(cfg.confirmLabel || 'Confirm')}</button>`,
         onOpen(el) {

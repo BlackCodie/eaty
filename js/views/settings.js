@@ -12,7 +12,8 @@
     'open-data': () => dataSheet(),
     'open-install': () => installSheet(),
     'open-about': () => aboutSheet(),
-    'open-sources': () => sourcesSheet()
+    'open-sources': () => sourcesSheet(),
+    'open-health': () => Personal.editor()
   });
 
   /* ===================================================== FOOD DATABASES */
@@ -237,6 +238,7 @@
 
         <div class="section-title mb8">App</div>
         <div class="card flush mb14">
+          ${navRow('user', 'Health profile', Personal.isSet(Personal.profile()) ? 'Allergens, diet, pregnancy and medicines — on' : 'Allergens, diet, pregnancy, medicines', 'open-health')}
           ${navRow('barcode', 'Food databases', 'Barcode sources and API key', 'open-sources')}
           ${navRow('download', 'Data & backup', 'Export, import or reset everything', 'open-data')}
           ${navRow('share', 'Install on your iPhone', 'Add Eaty to the Home Screen', 'open-install')}

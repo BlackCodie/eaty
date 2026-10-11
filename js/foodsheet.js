@@ -291,6 +291,15 @@
           .map(r => ({ kind: 'recipe', data: r }));
         rows = rm.concat(rows);
       }
+      // Supermarket products from the quick index — works offline, no download.
+      if (q.length >= 3) {
+        try {
+          const quick = await LocalPack.quickSearch(q, 30);
+          if (searchState.q.trim() !== q || searchState.tab !== 'all') return;     // superseded
+          const have = new Set(custom.filter(f => f.barcode).map(f => String(f.barcode)));
+          quick.filter(f => !have.has(String(f.barcode))).forEach(f => rows.push({ kind: 'food', data: f, online: true }));
+        } catch (_) { /* index not available yet */ }
+      }
     }
 
     if (!rows.length) {

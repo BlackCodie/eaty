@@ -53,7 +53,7 @@
       title: food.name,
       subtitle: [food.brand, food.cat].filter(Boolean).join(' · '),
       headerRight: `<button class="icon-btn${fav ? ' accent' : ''}" type="button" id="pp-fav" aria-label="Favourite">${App.icon('star')}</button>`,
-      body: heroHtml(food, rating) + `
+      body: heroHtml(food, rating) + '<div id="pp-you"></div>' + `
         <div class="seg-sticky">
           <div class="segmented" id="pp-tabs" role="tablist">
             ${PANES.map(([k, l]) => `<button type="button" role="tab" data-pane="${k}" class="${k === st.pane ? 'on' : ''}">${l}</button>`).join('')}
@@ -67,6 +67,9 @@
         foot.classList.add('pp-foot');
 
         const draw = () => {
+          // Personal warnings depend on the portion (caffeine, vitamin K …).
+          const you = el.querySelector('#pp-you');
+          if (you && window.Personal) you.innerHTML = Personal.bannerHtml(Personal.check(shown, grams()));
           pane.innerHTML = paneHtml(st.pane, food, shown, rating, st, grams(), unit);
           wirePane(el, pane);
           updateFoot();
@@ -176,6 +179,15 @@
         async function commit(scanAgain) {
           const sv = servings[st.serv];
           if (st.qty <= 0) return UI.toast('Enter an amount above zero', 'err');
+          const stops = window.Personal ? Personal.check(shown, grams()).filter(w => w.level === 'stop') : [];
+          if (stops.length) {
+            const ok = await UI.confirm({
+              title: stops[0].title,
+              message: stops.map(w => w.title + ' — ' + w.text).join('\n'),
+              confirmLabel: 'Log anyway', danger: true
+            });
+            if (!ok) return;
+          }
           const entry = App.entryFromFood(shown, st.qty, sv);
           if (shown.estimate) {
             entry.estimated = true;

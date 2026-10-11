@@ -1,12 +1,17 @@
 {
   "name": "eaty",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "description": "Offline-first nutrition tracker PWA — static files, no build step.",
   "scripts": {
     "start": "node serve.js",
     "test": "node --test \"tests/*.test.js\"",
-    "build:pack": "node tools/fetch-de.js && node tools/build-top.js"
+    "build:pack": "node tools/fetch-de.js && node tools/build-top.js",
+    "build:supplements": "node tools/fetch-supplements.js",
+    "build:names": "node tools/build-names.js",
+    "iphone": "node serve.js  # then open http://localhost:5188/dev/iphone.html"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

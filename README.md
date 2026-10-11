@@ -55,6 +55,30 @@ chocolate D 35, salami E 22.
 reweighted, and the score shows what share of the criteria it was judged on. Estimated nutrients are
 never used for the score.
 
+**Personal warnings** — a health profile (Settings → Health profile) holds your allergens (the 14
+EU allergens), diet (vegetarian, vegan, pescatarian), things to avoid (alcohol, caffeine), pregnancy
+or breastfeeding, and medicines with well-documented food interactions: levothyroxine, warfarin /
+phenprocoumon, statins, calcium-channel blockers, ACE inhibitors and sartans, MAO inhibitors, insulin
+and sulfonylureas, tetracycline and quinolone antibiotics, iron tablets. Every product is checked
+against it: a "For you" card on the product page, a warning toast the moment you scan, and a
+"Log anyway?" check before logging something that breaks it. Examples: grapefruit with a statin,
+tyramine-rich salami with an MAO inhibitor, spinach's vitamin K with a blood thinner, soy and coffee
+timing with thyroid tablets, alcohol, liver, raw-milk cheese, smoked fish and large predatory fish in
+pregnancy, gelatine for vegetarians. Packaged products use their declared allergens; whole foods are
+matched by name and marked "likely". The hormone map also adapts to the sex in your profile.
+
+**Weekly report** — Insights → report button (and a card on Today on Sundays and Mondays): days
+logged, calories and protein per day, the calorie-weighted Eaty Score, what went well and what to
+watch (fibre, protein, free sugar, salt, caffeine after 3 pm, alcohol, ultra-processed share,
+omega-3), the week's hormone pattern with the foods behind it, nutrient gaps with whole foods that
+fill them, and the most-logged, best and worst-rated foods — compared with the week before, with a
+Share button.
+
+**Offline product search** — `data/de/names.json` holds the 30,000 most-scanned products in
+Germany (ranked by Open Food Facts' scan counts, 1.4 MB). It downloads quietly in the background, so
+typing "Milka" or "Skyr" finds supermarket products in the normal food search with no signal and
+without saving the whole pack.
+
 **Hormone map** — `js/hormones.js` shows, for any portion and for the whole day, how food moves
 insulin, the fullness hormones GLP-1 and PYY, the hunger hormone ghrelin, cortisol, adrenaline,
 testosterone, estrogen, the thyroid hormones, melatonin, IGF-1, aldosterone and the vitamin D
@@ -105,6 +129,10 @@ magnesium, zinc, omega-3, B12, B complex, multivitamin, iron, calcium, folic aci
 selenium …) fill the dose in. Confirm once and every later scan of that tub logs a dose instantly.
 Mark what you take daily and it becomes a stack on Today with one-tap "Take all". Micronutrient bars
 split food (green) from pills (violet).
+
+**All in English** — the interface, built-in food names and serving labels are English. German
+staples keep their German name in brackets where that is what the packet says ("Quark, low-fat
+(Magerquark)"), and German words still find them in search.
 
 **Easy portions** — Open Food Facts' bulk data has no serving sizes, so pack products are offered
 a typical portion for their kind (a yoghurt pot, a glass, a slice, a handful of crisps, a shot of
@@ -185,7 +213,7 @@ so edits show on reload; deployed builds are cache-first and update when `VERSIO
 npm test
 ```
 
-runs the Node test suite (92 tests) against the same modules the app ships.
+runs the Node test suite (100 tests) against the same modules the app ships.
 
 ---
 
@@ -216,6 +244,7 @@ js/
   estimate.js         Micronutrient estimates for packaged products
   body.js             Physiology effects by body system, per portion and per day, with sources
   hormones.js         The hormone map: 12 hormones, from nutrients, compounds and ingredients
+  personal.js         Health profile and personal warnings (allergens, diet, pregnancy, medicines)
   charts.js           Dependency-free SVG rings, line and bar charts
   ui.js               Sheets, action sheets, toasts, confirms
   barcode.js          BarcodeDetector when available, else ZXing
@@ -232,9 +261,11 @@ js/
 tools/
   fetch-de.js         Harvests the German market from Open Food Facts
   fetch-supplements.js  Builds the supplement database with per-dose amounts
+  build-names.js      Builds the quick search index of the most-scanned products
   merge-pack.js       Carries European products over from an older pack
   reshard.js          Rewrites the pack's shards after a hash or shard-count change
   build-top.js        Builds the "better choices" and category ranking index
+dev/iphone.html       iPhone preview: real screen sizes, safe areas, status bar, home indicator
 tests/                Node test suite
 vendor/zxing.min.js   ZXing barcode decoder (MIT), loaded only on first scan
 ```
@@ -242,6 +273,22 @@ vendor/zxing.min.js   ZXing barcode decoder (MIT), loaded only on first scan
 No build step, no bundler, no runtime dependencies.
 
 ---
+
+## Checking the layout on iPhone sizes
+
+```bash
+npm start
+```
+
+then open <http://localhost:5188/dev/iphone.html>. It shows the app inside an iPhone frame at real
+point sizes (iPhone 16 Pro, 16, Pro Max, Plus, 14 and SE) with the Dynamic Island or notch, the
+status bar, the home indicator and the safe areas iOS reserves, as a Home Screen app or in Safari.
+Desktop browsers report zero safe areas, so the app reads them from the frame (`?safe=top,bottom`).
+
+The app uses the `default` status-bar style: `black-translucent` always draws white status-bar
+text, which disappears on a light background; `default` follows the system theme. iOS reads this
+setting when the app is added to the Home Screen, so after updating, remove Eaty from the Home Screen
+and add it again once.
 
 ## How barcode scanning works
 

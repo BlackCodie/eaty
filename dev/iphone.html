@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eaty — iPhone preview</title>
+<style>
+  /* Development tool: shows the app at real iPhone point sizes with the safe
+     areas, Dynamic Island, status bar and home indicator iOS draws on top.
+     Desktop browsers report zero safe-area insets, so the app reads the insets
+     from ?safe=top,bottom instead (see app.js). Open: /dev/iphone.html        */
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100vh; font: 14px -apple-system, "Segoe UI", system-ui, sans-serif;
+    background: #1b1d22; color: #e8eaf0; display: flex; flex-direction: column; align-items: center; }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 14px; }
+  select, button { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid #444; background: #2a2d34; color: inherit; }
+  .stage { padding: 6px 24px 40px; }
+  .phone { position: relative; border-radius: 58px; padding: 12px; background: #0a0a0c;
+    box-shadow: 0 0 0 2px #3a3c42, 0 30px 80px rgba(0,0,0,.6); }
+  .screen { position: relative; overflow: hidden; border-radius: 47px; background: #000; }
+  .screen.se { border-radius: 4px; }
+  iframe { position: absolute; left: 0; border: 0; display: block; background: transparent; }
+  .status { position: absolute; left: 0; right: 0; top: 0; z-index: 5; pointer-events: none;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 32px 0 44px;
+    font-weight: 600; font-size: 17px; letter-spacing: -.02em; }
+  .status .r { display: flex; gap: 6px; align-items: center; }
+  .status .r i { display: inline-block; height: 12px; border-radius: 3px; background: currentColor; }
+  .island { position: absolute; z-index: 6; left: 50%; transform: translateX(-50%); top: 11px;
+    width: 126px; height: 37px; border-radius: 20px; background: #000; pointer-events: none; }
+  .notch { position: absolute; z-index: 6; left: 50%; transform: translateX(-50%); top: 0;
+    width: 162px; height: 33px; border-radius: 0 0 20px 20px; background: #000; pointer-events: none; }
+  .home { position: absolute; z-index: 6; left: 50%; transform: translateX(-50%); bottom: 8px;
+    width: 140px; height: 5px; border-radius: 3px; pointer-events: none; }
+  .safari-bottom { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; pointer-events: none;
+    display: flex; align-items: flex-start; justify-content: center; padding-top: 10px; }
+  .safari-bottom div { width: calc(100% - 28px); height: 46px; border-radius: 23px;
+    background: rgba(120,120,128,.35); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    display: grid; place-items: center; font-size: 15px; }
+  .guides .g { position: absolute; left: 0; right: 0; z-index: 7; pointer-events: none;
+    background: rgba(255, 60, 60, .18); border: 1px dashed rgba(255, 80, 80, .8); }
+  .note { max-width: 560px; text-align: center; color: #9aa0ad; font-size: 12.5px; line-height: 1.5; padding: 0 16px 20px; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <select id="device"></select>
+    <select id="mode">
+      <option value="pwa">Home Screen app</option>
+      <option value="safari">Safari</option>
+    </select>
+    <select id="statusStyle">
+      <option value="default">Status bar: default (solid, follows system)</option>
+      <option value="black-translucent">Status bar: black-translucent (white text over app)</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="guides"> Safe-area guides</label>
+    <button id="reload" type="button">Reload</button>
+  </div>
+  <div class="stage"><div class="phone" id="phone"><div class="screen" id="screen">
+    <iframe id="app" title="Eaty"></iframe>
+  </div></div></div>
+  <p class="note">Point sizes and safe areas match the real devices. iOS draws the status bar and home
+    indicator over the app. With <code>black-translucent</code> the status bar text is always white —
+    unreadable on a light background — so Eaty uses <code>default</code>, which follows the system theme.</p>
+<script>
+  const DEVICES = {
+    'iphone-16-pro':     { label: 'iPhone 16 Pro / 17 Pro', w: 402, h: 874, top: 62, bottom: 34, cut: 'island' },
+    'iphone-16':         { label: 'iPhone 16 / 15 / 15 Pro', w: 393, h: 852, top: 59, bottom: 34, cut: 'island' },
+    'iphone-16-pro-max': { label: 'iPhone 16 Pro Max / 17 Pro Max', w: 440, h: 956, top: 62, bottom: 34, cut: 'island' },
+    'iphone-15-plus':    { label: 'iPhone 16 Plus / 15 Plus', w: 430, h: 932, top: 59, bottom: 34, cut: 'island' },
+    'iphone-14':         { label: 'iPhone 14 / 13 / 12', w: 390, h: 844, top: 47, bottom: 34, cut: 'notch' },
+    'iphone-se':         { label: 'iPhone SE (2nd/3rd gen)', w: 375, h: 667, top: 20, bottom: 0, cut: 'none' }
+  };
+  const $ = id => document.getElementById(id);
+  const q = new URLSearchParams(location.search);
+  Object.entries(DEVICES).forEach(([k, d]) => $('device').add(new Option(d.label + ' — ' + d.w + '×' + d.h, k)));
+  $('device').value = q.get('device') || 'iphone-16-pro';
+  $('mode').value = q.get('mode') || 'pwa';
+  $('statusStyle').value = q.get('status') || 'default';
+  $('guides').checked = q.get('guides') === '1';
+
+  function render() {
+    const d = DEVICES[$('device').value];
+    const pwa = $('mode').value === 'pwa';
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const screen = $('screen'), app = $('app');
+    screen.className = 'screen' + (d.cut === 'none' ? ' se' : '');
+    screen.style.width = d.w + 'px';
+    screen.style.height = d.h + 'px';
+    screen.querySelectorAll('.status,.island,.notch,.home,.safari-bottom,.guides').forEach(n => n.remove());
+
+    // Safari, and Home Screen apps with the "default" status bar, start the page
+    // below the status bar; "black-translucent" runs the page underneath it.
+    const translucent = pwa && $('statusStyle').value === 'black-translucent';
+    const safariBottom = 76;
+    const top = translucent ? 0 : d.top, height = translucent ? d.h : d.h - d.top;
+    app.style.top = top + 'px';
+    app.style.width = d.w + 'px';
+    app.style.height = height + 'px';
+    const insets = (translucent ? d.top : 0) + ',' + (pwa ? d.bottom : 0);
+    const src = '../index.html?safe=' + insets + (pwa ? '&standalone=1' : '');
+    if (app.dataset.src !== src) { app.dataset.src = src; app.src = src; }
+
+    const status = document.createElement('div');
+    status.className = 'status';
+    status.style.height = d.top + 'px';
+    status.style.color = translucent ? '#fff' : (dark ? '#fff' : '#000');
+    if (!translucent) status.style.background = pwa ? (dark ? '#000' : '#fff') : (dark ? '#05070C' : '#ECEFF5');
+    status.innerHTML = '<span>9:41</span><span class="r"><i style="width:17px"></i><i style="width:15px"></i><i style="width:25px;border-radius:4px"></i></span>';
+    if (d.cut === 'none') { status.style.fontSize = '12px'; status.style.padding = '0 8px'; }
+    screen.appendChild(status);
+    if (d.cut !== 'none') { const c = document.createElement('div'); c.className = d.cut; screen.appendChild(c); }
+    if (d.bottom) {
+      const home = document.createElement('div');
+      home.className = 'home';
+      home.style.background = dark ? '#fff' : '#000';
+      screen.appendChild(home);
+    }
+    if (!pwa) {
+      const sb = document.createElement('div');
+      sb.className = 'safari-bottom';
+      sb.style.height = safariBottom + 'px';
+      sb.innerHTML = '<div>eaty — github.io</div>';
+      screen.appendChild(sb);
+    }
+    if ($('guides').checked && pwa) {
+      const g = document.createElement('div');
+      g.className = 'guides';
+      g.innerHTML = `<div class="g" style="top:0;height:${d.top}px"></div><div class="g" style="bottom:0;height:${d.bottom}px"></div>`;
+      screen.appendChild(g);
+    }
+  }
+  ['device', 'mode', 'statusStyle', 'guides'].forEach(id => $(id).addEventListener('change', render));
+  $('reload').addEventListener('click', () => { $('app').contentWindow.location.reload(); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+  render();
+</script>
+</body>
+</html>

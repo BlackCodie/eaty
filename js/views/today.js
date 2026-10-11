@@ -199,6 +199,15 @@
           </button>
         </div>
 
+        <!-- Weekly report: Sundays and Mondays -->
+        ${[0, 1].indexOf(new Date().getDay()) !== -1 && loggedDates.length >= 3 ? `
+        <button class="card press" type="button" data-act="${new Date().getDay() === 1 ? 'open-last-report' : 'open-report'}" style="text-align:left;width:100%;display:flex;gap:12px;align-items:center">
+          <span class="li-ic" style="background:var(--brand-dim);color:var(--brand)">${App.icon('list')}</span>
+          <span class="grow"><b style="display:block;font-size:15px">Your weekly report is ready</b>
+            <span class="tiny muted">Score, sugar, caffeine, hormones and nutrient gaps for ${new Date().getDay() === 1 ? 'last week' : 'this week'}</span></span>
+          ${App.icon('right', 'li-chev')}
+        </button>` : ''}
+
         <!-- Body today -->
         ${entries.length ? `
         <button class="card press" type="button" data-act="go-insights" style="text-align:left;width:100%;display:block">
@@ -409,6 +418,9 @@
       { act: 'setup-pack', done: !!App.state.packSaved,
         title: 'Save the product pack for offline scanning',
         sub: packLine },
+      { act: 'open-health', done: Personal.isSet(Personal.profile()),
+        title: 'Set up your health profile',
+        sub: 'Allergens, diet and medicines — warnings when you scan' },
       { act: 'supp-manage', done: supps.length > 0,
         title: 'Add the supplements you take',
         sub: 'Log your whole stack in one tap each day' },

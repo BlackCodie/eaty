@@ -224,9 +224,23 @@
     if (amt('vitD') >= 2.5) add('vitaminD', 'support', amt('vitD') >= 10 ? 2 : 1, 'good', 'strong', `${Math.round(amt('vitD') * 10) / 10} µg vitamin D — the precursor of the hormone calcitriol.`, ['efsa-vitd']);
     else if (sig.has('OILY_FISH') && g >= 50 && !supplement) add('vitaminD', 'support', 1, 'good', 'strong', 'Oily fish is one of the few natural food sources of vitamin D.', ['efsa-vitd']);
 
+    /* ---------------- tailored to your sex ---------------- */
+    const sex = window.App && App.state && App.state.profile ? App.state.profile.sex : '';
+    const note = (k, rx, extra) => (by[k] || []).forEach(i => { if (rx.test(i.text)) i.text += ' ' + extra; });
+    if (sex === 'male') {
+      note('testosterone', /Spearmint/, 'Studied in women — there is little data in men.');
+      note('estrogen', /luteal phase/, 'Relevant to the menstrual cycle; in men the testosterone effect matters more.');
+    } else if (sex === 'female') {
+      note('testosterone', /Even moderate daily drinking/, 'In women, alcohol mainly raises estrogen rather than lowering testosterone.');
+      note('testosterone', /large sugar load/, 'Studied in men.');
+    }
+    const order = sex === 'female'
+      ? LIST.slice().sort((a, b) => (a.k === 'estrogen' && b.k === 'testosterone') ? -1 : (a.k === 'testosterone' && b.k === 'estrogen') ? 1 : 0)
+      : LIST;
+
     /* ---------------- assemble ---------------- */
     const TONE = { warn: 0, caution: 1, good: 2, info: 3 };
-    return LIST.filter(h => by[h.k]).map(h => {
+    return order.filter(h => by[h.k]).map(h => {
       const items = by[h.k].sort((a, b) => b.strength - a.strength || TONE[a.tone] - TONE[b.tone]);
       const up = items.filter(i => i.dir === 'up').reduce((s, i) => s + i.strength, 0);
       const down = items.filter(i => i.dir === 'down').reduce((s, i) => s + i.strength, 0);

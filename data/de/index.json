@@ -1,12 +1,12 @@
 {
   "version": 5,
-  "built": "2026-10-09",
+  "built": "2026-10-11",
   "hash": "fnv1a-fmix32",
   "shards": 160,
   "pad": 3,
   "count": 546335,
   "labelled": 382468,
-  "gzBytes": 21599247,
+  "gzBytes": 21634087,
   "source": "Open Food Facts",
   "license": "ODbL-1.0",
   "fields": [

@@ -65,7 +65,8 @@ against it: a "For you" card on the product page, a warning toast the moment you
 tyramine-rich salami with an MAO inhibitor, spinach's vitamin K with a blood thinner, soy and coffee
 timing with thyroid tablets, alcohol, liver, raw-milk cheese, smoked fish and large predatory fish in
 pregnancy, gelatine for vegetarians. Packaged products use their declared allergens; whole foods are
-matched by name and marked "likely". The hormone map also adapts to the sex in your profile.
+matched by name and marked "likely". The hormone map also adapts to the sex in your profile. First-run
+setup asks for allergens and diet, and the diary marks every entry that clashes with the profile.
 
 **Weekly report** — Insights → report button (and a card on Today on Sundays and Mondays): days
 logged, calories and protein per day, the calorie-weighted Eaty Score, what went well and what to
@@ -77,7 +78,8 @@ Share button.
 **Offline product search** — `data/de/names.json` holds the 30,000 most-scanned products in
 Germany (ranked by Open Food Facts' scan counts, 1.4 MB). It downloads quietly in the background, so
 typing "Milka" or "Skyr" finds supermarket products in the normal food search with no signal and
-without saving the whole pack.
+without saving the whole pack. With a signal, one tap carries the query over to Open Food Facts'
+online search (products sold in Germany), topped up from the offline index when it finds little.
 
 **Hormone map** — `js/hormones.js` shows, for any portion and for the whole day, how food moves
 insulin, the fullness hormones GLP-1 and PYY, the hunger hormone ghrelin, cortisol, adrenaline,
@@ -117,7 +119,11 @@ water, so this carries across correctly. Estimates never overwrite a declared va
 *est.*, are kept out of the score, and can be switched off in Settings.
 
 **Food diary** — breakfast / lunch / dinner / snacks, per-entry editing, duplicate, move between
-meals, copy a meal or a whole day, save a meal as a recipe, exercise log, water tracking, notes.
+meals, copy a meal or a whole day, save a meal as a recipe, exercise log, water tracking, notes. Each
+entry shows its Eaty Score grade and any health-profile warning; each meal its calorie-weighted grade.
+
+**Log again** — Today offers the foods you have eaten at least twice in the last three weeks, each
+with your usual portion. One tap logs it into the current meal, with Undo.
 
 **Supplements** — amounts **per capsule, tablet, softgel, gummy, scoop, sachet, ml, drop or spray**,
 vitamins A, D and E in **IU** with the conversion done for you. **Scanning a supplement** looks it up
@@ -134,9 +140,10 @@ split food (green) from pills (violet).
 staples keep their German name in brackets where that is what the packet says ("Quark, low-fat
 (Magerquark)"), and German words still find them in search.
 
-**Easy portions** — Open Food Facts' bulk data has no serving sizes, so pack products are offered
-a typical portion for their kind (a yoghurt pot, a glass, a slice, a handful of crisps, a shot of
-spirits) next to the whole pack and 100 g.
+**Easy portions** — Open Food Facts' bulk data has no serving sizes, so the 5,000 most-scanned
+products get their real serving size and declared vitamins from the full product record
+(`tools/enrich-pack.js`). Everything else is offered a typical portion for its kind (a yoghurt pot,
+a glass, a slice, a handful of crisps, a shot of spirits) next to the whole pack and 100 g.
 
 **Barcode scanning** — the Scan orb resolves a code against, in order: foods already on your device,
 the **bundled pack of ~546,000 German supermarket products** (works with no signal),
@@ -262,6 +269,7 @@ tools/
   fetch-de.js         Harvests the German market from Open Food Facts
   fetch-supplements.js  Builds the supplement database with per-dose amounts
   build-names.js      Builds the quick search index of the most-scanned products
+  enrich-pack.js      Serving sizes and declared vitamins for the 5,000 most-scanned products
   merge-pack.js       Carries European products over from an older pack
   reshard.js          Rewrites the pack's shards after a hash or shard-count change
   build-top.js        Builds the "better choices" and category ranking index
@@ -347,7 +355,9 @@ same kind of product and meaningfully better.
 
 Regenerate with `node tools/fetch-de.js` (it refuses to overwrite a good pack with a short harvest),
 `node tools/merge-pack.js <old-pack-dir>` to carry over European products that dropped out of the
-index, then `node tools/build-top.js`. Re-run every few months to pick up new products.
+index, `node tools/build-names.js` and `node tools/enrich-pack.js` for the quick search index and
+serving sizes, then `node tools/build-top.js`. The `refresh-pack` GitHub workflow runs all of this
+on the 1st of every month and commits the result only if the tests pass.
 
 No supermarket publishes its own catalogue, so a literally complete Kaufland/Rewe/Aldi list does not
 exist in any public source. Open Food Facts is the closest thing; anything missing can be added in

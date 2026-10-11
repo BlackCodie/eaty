@@ -226,6 +226,21 @@
     </div>`;
   }
 
+  /** "Gluten, Milk · Vegetarian · 2 medicines", or '' when nothing is set. */
+  function summary(health) {
+    const h = health || profile();
+    const names = Object.fromEntries(ALLERGEN_NAMES());
+    const parts = [];
+    if (h.allergens.length) parts.push(h.allergens.map(k => names[k] || k).join(', '));
+    if (h.diet !== 'any') parts.push((DIETS.find(d => d[0] === h.diet) || [0, h.diet])[1]);
+    if (h.pregnant) parts.push('Pregnant');
+    else if (h.breastfeeding) parts.push('Breastfeeding');
+    if (h.avoidAlcohol) parts.push('No alcohol');
+    if (h.avoidCaffeine) parts.push('No caffeine');
+    if (h.meds.length) parts.push(h.meds.length === 1 ? '1 medicine' : h.meds.length + ' medicines');
+    return parts.join(' · ');
+  }
+
   /* ------------------------------------------------------------- editor */
   function editor() {
     const h = profile();
@@ -292,5 +307,5 @@
   }
 
   if (window.Body) Object.assign(Body.SOURCES, SOURCES);
-  window.Personal = { profile, isSet, check, allergensOf, bannerHtml, editor, MEDICINES, DIETS, SOURCES };
+  window.Personal = { profile, isSet, summary, check, allergensOf, bannerHtml, editor, MEDICINES, DIETS, SOURCES };
 })();

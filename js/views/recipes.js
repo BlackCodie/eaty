@@ -70,13 +70,25 @@
     }
   };
 
+  /** No photo: a thumbnail tinted by where the calories come from. */
+  function macroThumb(n) {
+    const e = { p: (n.protein || 0) * 4, c: (n.carbs || 0) * 4, f: (n.fat || 0) * 9 };
+    const tot = e.p + e.c + e.f || 1;
+    const pc = k => Math.round(e[k] / tot * 100);
+    const tint = (k, at) => `radial-gradient(circle at ${at}, color-mix(in srgb, var(--${{ p: 'protein', c: 'carbs', f: 'fat' }[k]}) ${Math.round(10 + pc(k) * 0.5)}%, transparent), transparent 62%)`;
+    return `<div class="recipe-thumb ph" style="background:${tint('p', '18% 20%')},${tint('c', '86% 28%')},${tint('f', '50% 105%')},linear-gradient(150deg,var(--card-2),var(--card-hi))">
+      <span class="ph-ic">${App.icon('recipes')}</span>
+      <span class="ph-bar" aria-hidden="true"><i style="flex:${pc('p')};background:var(--protein)"></i><i style="flex:${pc('c')};background:var(--carbs)"></i><i style="flex:${pc('f')};background:var(--fat)"></i></span>
+    </div>`;
+  }
+
   function cardHtml(r, isFav) {
     const rn = App.recipeNutrition(r);
     return `<div class="recipe-card-wrap">
       <button class="recipe-card" type="button" data-act="open-recipe" data-id="${r.id}" style="width:100%">
         ${r.image
           ? `<img class="recipe-thumb" src="${App.safeImg(r.image)}" alt="" loading="lazy">`
-          : `<div class="recipe-thumb ph">${App.icon('recipes')}</div>`}
+          : macroThumb(rn.perServing)}
         <div class="recipe-body">
           <h3>${App.esc(r.name)}</h3>
           <div class="recipe-meta">

@@ -105,7 +105,8 @@
     const tab = App.state.tab;
     const view = App.views[tab];
     const el = App.$('#view-' + tab);
-    if (!view || !el || rendering) return;
+    // Nothing to draw until boot has a profile and targets (e.g. mid-onboarding).
+    if (!view || !el || rendering || !App.state.ready) return;
 
     rendering = true;
     const keepScroll = o.restore ? (scrollMem[tab] || 0) : el.scrollTop;
@@ -167,13 +168,13 @@
   function measureHeader() {
     const bar = App.$('#appbar');
     const was = bar.classList.contains('scrolled');
+    // Measure with transitions off: mid-collapse heights would leave a gap.
+    bar.classList.add('measuring');
     if (was) bar.classList.remove('scrolled');
-    const large = bar.querySelector('.appbar-large');
-    const prev = large.style.transition;
-    large.style.transition = 'none';
     const h = bar.offsetHeight;
-    large.style.transition = prev;
     if (was) bar.classList.add('scrolled');
+    void bar.offsetHeight;
+    bar.classList.remove('measuring');
     root.style.setProperty('--header-h', h + 'px');
   }
 

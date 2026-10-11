@@ -1610,3 +1610,39 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 body.sheet-active #toast-host { bottom: auto; top: calc(var(--safe-t) + 12px); }
 body.sheet-active .toast { animation-name: toastInTop; }
 @keyframes toastInTop { from { opacity: 0; transform: translateY(-16px) scale(.92) } to { opacity: 1; transform: none } }
+
+/* Log again chips on Today */
+.quick-log .chip { flex-direction: column; align-items: flex-start; gap: 0; min-height: 46px; padding: 6px 14px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--line); box-shadow: inset 0 1px 0 var(--card-edge); color: var(--tx); }
+.quick-log .ql-name { font-size: 13.5px; font-weight: 640; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-log small { font-size: 11px; color: var(--tx-3); font-weight: 600; }
+
+/* Diary: grade per entry, health-profile markers */
+.q-pill.none { background: var(--fill); color: var(--tx-3); box-shadow: none; }
+.meal-head .q-pill { margin-left: -2px; }
+.li-flag { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 11.5px; font-weight: 650;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.li-flag svg { width: 13px; height: 13px; flex: none; }
+.li-flag.stop { color: var(--protein); }
+.li-flag.caution { color: var(--fat); }
+
+#appbar.measuring, #appbar.measuring * { transition: none !important; }
+
+/* Recipe cards: grade pill keeps its square, macro-tinted placeholder */
+.recipe-meta .q-pill { display: inline-grid; place-items: center; gap: 0; }
+.recipe-thumb.ph { position: relative; }
+.recipe-thumb.ph .ph-ic { width: 46px; height: 46px; border-radius: 16px; display: grid; place-items: center; color: var(--tx-2);
+  background: color-mix(in srgb, var(--card) 70%, transparent); box-shadow: inset 0 1px 0 var(--card-edge), var(--shadow-1);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.recipe-thumb.ph .ph-ic svg { width: 24px; height: 24px; }
+.recipe-thumb.ph .ph-bar { position: absolute; left: 12px; right: 12px; bottom: 10px; height: 5px; display: flex; gap: 2px;
+  border-radius: 3px; overflow: hidden; opacity: .85; }
+.recipe-thumb.ph .ph-bar i { min-width: 3px; }
+
+/* Setup checklist: what's left first, finished steps collapse to one line */
+.setup-list .shop-item.done { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
+.setup-list .shop-item.done small { display: none; }
+
+/* Grade letters: dark ink on the bright dark-mode grade colours, white on the deeper light ones */
+.q-pill:not(.none) { color: rgba(4, 22, 12, .86); box-shadow: inset 0 1px 0 rgba(255,255,255,.4); }
+:root[data-theme="light"] .q-pill:not(.none) { color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }

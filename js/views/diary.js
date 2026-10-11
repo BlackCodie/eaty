@@ -172,24 +172,45 @@
     }
   };
 
+  const foodOf = e => (e.refId && e.type !== 'recipe' ? App.food(e.refId) : null);
+
+  /** Grade pill, and a marker when the entry clashes with the health profile. */
+  function entryBadges(e) {
+    const f = foodOf(e);
+    if (!f) return { pill: '', flag: '' };
+    const r = Quality.rate(f);
+    const warns = window.Personal ? Personal.check(f, e.grams) : [];
+    const stop = warns.find(w => w.level === 'stop');
+    const caution = !stop && warns.find(w => w.level === 'caution');
+    const w = stop || caution;
+    return {
+      pill: r ? UI.gradePill(r, true) : '<span class="q-pill sm none">?</span>',
+      flag: w ? `<span class="li-flag ${stop ? 'stop' : 'caution'}" title="${App.esc(w.title)}">${App.icon('info')}${App.esc(w.title)}</span>` : ''
+    };
+  }
+
   function mealCard(m, list) {
     const kcal = list.reduce((s, e) => s + (e.n.kcal || 0), 0);
+    const q = list.length ? Quality.rateDay(list, foodOf) : null;
     return `<div class="card flush">
       <div class="meal-head">
         <div class="ic">${App.icon(m.icon)}</div>
         <h3>${m.label}</h3>
+        ${q && q.rated > 1 ? UI.gradePill(q, true) : ''}
         <span class="kc">${App.int(kcal)} kcal</span>
         <button class="icon-btn" type="button" data-act="meal-menu" data-meal="${m.k}" aria-label="${m.label} options"
                 style="width:30px;height:30px">${App.icon('more')}</button>
       </div>
-      ${list.length ? `<div class="list">${list.map(e => `
+      ${list.length ? `<div class="list">${list.map(e => { const b = entryBadges(e); return `
         <button class="list-item" type="button" data-act="entry-menu" data-id="${e.id}">
+          ${b.pill}
           <div class="li-main">
             <div class="li-title">${App.esc(e.name)}</div>
             <div class="li-sub">${App.esc(portionText(e))} · ${UI.macroLine(e.n)}</div>
+            ${b.flag}
           </div>
           <div class="li-right"><div class="li-kcal">${App.int(e.n.kcal)}</div><div class="li-macros">kcal</div></div>
-        </button>`).join('')}</div>` : ''}
+        </button>`; }).join('')}</div>` : ''}
       <button class="meal-add" type="button" data-act="add-food" data-meal="${m.k}">${App.icon('plus')}Add food</button>
     </div>`;
   }
@@ -208,6 +229,7 @@
   function portionText(e) {
     if (e.type === 'quick') return 'Quick add';
     if (e.type === 'recipe') return App.n(e.qty, 2) + ' × serving';
+    if (e.qty === 1 && e.servingLabel) return e.servingLabel;     // "1 slice (32 g)", not "1 × 1 slice (32 g)"
     const q = App.n(e.qty, 2);
     return `${q} × ${e.servingLabel}`;
   }

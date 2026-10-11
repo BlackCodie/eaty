@@ -5,7 +5,7 @@
   'use strict';
 
   const App = window.App = {
-    version: '2.3.0',
+    version: '2.4.0',
     state: {
       ready: false,
       tab: 'today',

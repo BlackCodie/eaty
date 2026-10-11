@@ -210,7 +210,8 @@
   }
 
   function emptyBox(msg, h) {
-    return `<div class="chart-empty" style="min-height:${(h || 150) - 20}px">${esc(msg)}</div>`;
+    // Compact: an empty chart should not hold a whole chart's height of blank space.
+    return `<div class="chart-empty" style="min-height:${Math.min((h || 150) - 20, 84)}px">${esc(msg)}</div>`;
   }
 
   function esc(s) {

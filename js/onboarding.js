@@ -11,6 +11,7 @@
 
   function start() {
     const p = Object.assign({}, DEFAULTS);
+    const health = { allergens: [], diet: 'any', pregnant: false };
     let step = 0;
 
     const host = App.$('#onboard-host');
@@ -123,6 +124,41 @@
 
       /* ---------------------------------------------------------- 4 */
       {
+        render: () => `
+          <h2>Anything to avoid?</h2>
+          <p class="lede">Eaty warns you on the product page, when you scan, and before you log. Skip this if nothing applies.</p>
+          <div class="section-title mb8">Allergens and intolerances</div>
+          <div class="hl mb14" id="ob-allergens" style="margin-bottom:18px">${(window.OffMap ? OffMap.ALLERGENS : []).map(([k, label]) =>
+            `<button type="button" class="chip${health.allergens.indexOf(k) !== -1 ? ' on' : ''}" data-allergen="${k}">${App.esc(label)}</button>`).join('')}</div>
+          <div class="section-title mb8">Diet</div>
+          <div class="segmented" id="ob-diet" style="margin-bottom:18px">${Personal.DIETS.map(([k, l]) =>
+            `<button type="button" data-diet="${k}" class="${health.diet === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+          ${p.sex !== 'male' ? `<div class="card flush mb14"><div class="switch-row"><div class="sr-main"><b>Pregnant</b>
+            <small>Alcohol, caffeine, listeria, mercury, vitamin A</small></div>
+            <button class="switch" type="button" role="switch" id="ob-preg" aria-checked="${health.pregnant}" aria-label="Pregnant"></button></div></div>` : ''}
+          <p class="tiny muted" style="line-height:1.55">Medicines with food interactions (thyroid tablets, blood
+            thinners, statins…) can be added later in Settings → Health profile. Stays on this device.</p>`,
+        bind(el) {
+          el.querySelectorAll('[data-allergen]').forEach(b => b.addEventListener('click', () => { b.classList.toggle('on'); App.haptic('light'); }));
+          el.querySelectorAll('[data-diet]').forEach(b => b.addEventListener('click', () => {
+            el.querySelectorAll('[data-diet]').forEach(x => x.classList.toggle('on', x === b));
+            App.haptic('light');
+          }));
+          const sw = el.querySelector('#ob-preg');
+          if (sw) sw.addEventListener('click', () => sw.setAttribute('aria-checked', String(sw.getAttribute('aria-checked') !== 'true')));
+        },
+        collect(el) {
+          health.allergens = Array.from(el.querySelectorAll('[data-allergen].on')).map(b => b.dataset.allergen);
+          const d = el.querySelector('[data-diet].on');
+          health.diet = d ? d.dataset.diet : 'any';
+          const sw = el.querySelector('#ob-preg');
+          health.pregnant = !!sw && sw.getAttribute('aria-checked') === 'true';
+          return null;
+        }
+      },
+
+      /* ---------------------------------------------------------- 5 */
+      {
         render() {
           const t = Nutrition.targets(p);
           const goal = Nutrition.GOALS.find(g => g.k === p.goal);
@@ -184,6 +220,7 @@
           <button class="btn primary grow" type="button" id="ob-next">${cfg.next || 'Continue'}</button>
         </div>`;
 
+      if (cfg.bind) cfg.bind(root);
       root.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => {
         const field = b.dataset.pick;
         p[field] = b.dataset.v;
@@ -218,6 +255,12 @@
       p.startWeight = p.weight;
       p.created = Date.now();
       await Data.saveProfile(p);
+      if (health.allergens.length || health.diet !== 'any' || health.pregnant) {
+        try {
+          const prev = (await Data.settings()).health || {};
+          await Data.saveSettings({ health: Object.assign({}, prev, health) });
+        } catch (e) { console.warn('health profile not saved', e); }
+      }
 
       // Seed a starter recipe library and the first weigh-in.
       try {

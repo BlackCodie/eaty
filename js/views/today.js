@@ -17,16 +17,16 @@
       const t = App.state.targets;
       const p = App.state.profile;
 
-      // Only the windows actually rendered: today, the last 7 days for the
-      // chart, and the bare list of logged dates for the streak. None of these
-      // grow with how long you have been using the app.
+      // Only the windows actually rendered: today, the last three weeks (chart
+      // and "log again"), and the bare list of logged dates for the streak. None
+      // of these grow with how long you have been using the app.
       const week = App.date.range(today, 7);
-      const [entries, workouts, day, weights, weekEntries, loggedDates, entryCount] = await Promise.all([
+      const [entries, workouts, day, weights, recentEntries, loggedDates, entryCount] = await Promise.all([
         Data.entriesFor(today),
         Data.workoutsFor(today),
         Data.day(today),
         Data.weights(),
-        Data.entriesBetween(week[0], today),
+        Data.entriesBetween(App.date.add(today, -20), today),
         Data.loggedDates().catch(() => []),
         Data.DB.count('entries')
       ]);
@@ -47,7 +47,7 @@
 
       /* ---- last 7 days of calories */
       const byDate = {};
-      weekEntries.forEach(e => { byDate[e.date] = (byDate[e.date] || 0) + (e.n.kcal || 0); });
+      recentEntries.forEach(e => { byDate[e.date] = (byDate[e.date] || 0) + (e.n.kcal || 0); });
       const weekBars = week.map(d => ({
         x: App.date.dow(d)[0],
         y: byDate[d] || 0,
@@ -56,6 +56,21 @@
       }));
 
       const latestWeight = weights.length ? weights[weights.length - 1] : null;
+
+      /* ---- log again: the foods you eat most, with your usual portion */
+      const habits = {};
+      recentEntries.forEach(e => {
+        if (!e.refId || e.type === 'supplement' || e.type === 'quick') return;
+        const h = habits[e.refId] || (habits[e.refId] = { n: 0, last: e });
+        h.n++;
+        if ((e.ts || 0) > (h.last.ts || 0)) h.last = e;
+      });
+      const loggedToday = new Set(entries.map(e => e.refId));
+      const quick = Object.values(habits)
+        .filter(h => h.n >= 2 && !loggedToday.has(h.last.refId))
+        .sort((a, b) => b.n - a.n || (b.last.ts || 0) - (a.last.ts || 0))
+        .slice(0, 8).map(h => h.last);
+      App.state.quickLog = quick;
 
       /* ---- setup checklist: features that matter but are easy to miss */
       const setup = await setupSteps();
@@ -152,7 +167,7 @@
               <button class="icon-btn" type="button" data-act="setup-dismiss" aria-label="Hide checklist"
                       style="width:30px;height:30px">${App.icon('close')}</button>
             </div>
-            <div class="list">${setup.steps.map(st => `
+            <div class="list setup-list">${setup.steps.slice().sort((x, y) => x.done - y.done).map(st => `
               <button class="shop-item${st.done ? ' done' : ''}" type="button" data-act="${st.act}" ${st.done ? 'disabled' : ''}>
                 <span class="shop-box">${App.icon('check')}</span>
                 <span class="si-main"><b>${st.title}</b><small>${st.sub}</small></span>
@@ -186,6 +201,14 @@
           </div>
           <div class="mt12">${Charts.macroBar(totals)}</div>
         </div>
+
+        <!-- Log again -->
+        ${quick.length ? `
+        <div>
+          <div class="section-title mb8">Log again · ${App.esc(App.mealLabel(App.guessMeal()))}</div>
+          <div class="chips bleed quick-log">${quick.map((e, i) => `<button class="chip" type="button" data-act="quick-log" data-i="${i}">
+            <span class="ql-name">${App.esc(e.name.replace(/ \(.*\)$/, ''))}</span><small>${App.int(e.n.kcal)} kcal</small></button>`).join('')}</div>
+        </div>` : ''}
 
         <!-- Quick strip -->
         <div class="strip">
@@ -462,6 +485,35 @@
 
   /* ------------------------------------------------------------- actions */
   App.act({
+    /** Re-log a habitual food with its last portion, into the current meal. */
+    async 'quick-log'(el) {
+      const last = (App.state.quickLog || [])[Number(el.dataset.i)];
+      if (!last) return;
+      const meta = { date: App.date.today(), meal: App.guessMeal() };
+      let entry;
+      if (last.type === 'recipe') {
+        const r = (App.state.recipesCache || []).find(x => x.id === last.refId);
+        entry = r ? App.entryFromRecipe(r, last.qty, meta) : null;
+      } else {
+        const f = App.food(last.refId);
+        entry = f ? App.entryFromFood(f, last.qty, { label: last.servingLabel, g: last.servingGrams }, meta) : null;
+        // The health profile may have changed since this was last eaten.
+        const stops = f && window.Personal ? Personal.check(f, entry.grams).filter(w => w.level === 'stop') : [];
+        if (stops.length && !(await UI.confirm({
+          title: stops[0].title,
+          message: stops.map(w => w.title + ' — ' + w.text).join('\n'),
+          confirmLabel: 'Log anyway', danger: true
+        }))) return;
+      }
+      if (!entry) entry = Object.assign({}, last, meta, { id: App.uid('e'), ts: Date.now() });
+      await Data.saveEntry(entry);
+      App.haptic('ok');
+      UI.toast(entry.name.replace(/ \(.*\)$/, '') + ' logged', 'ok', {
+        label: 'Undo',
+        onClick: async () => { await Data.deleteEntry(entry.id); App.refresh(); }
+      });
+      App.refresh();
+    },
     async 'setup-dismiss'() {
       App.state.settings = await Data.saveSettings({ setupDismissed: true });
       App.refresh();

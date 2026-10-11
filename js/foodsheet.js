@@ -215,10 +215,14 @@
         <div class="boot-bar mt8" style="width:150px"><i></i></div></div></div>`;
       // Query both databases at once: Open Food Facts for packaged goods,
       // FoodData Central for analysed generic foods with full micronutrients.
-      const [offRes, fdcRes] = await Promise.allSettled([
-        OFF.search(q, { limit: 25 }),
-        FDC.search(q, { limit: 15 })
-      ]);
+      // Packaged products matter most here, so a slow FoodData Central gets
+      // 1.5 s of grace after Open Food Facts answers, not the whole wait.
+      const settle = pr => pr.then(value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }));
+      const fdcP = settle(FDC.search(q, { limit: 15 }));
+      const offRes = await settle(OFF.search(q, { limit: 25 }));
+      const fdcRes = offRes.status === 'fulfilled' && offRes.value.length
+        ? await Promise.race([fdcP, new Promise(r => setTimeout(() => r({ status: 'rejected', reason: { code: 'slow' } }), 1500))])
+        : await fdcP;
       if (searchState.q.trim() !== q || searchState.tab !== 'online') return;   // superseded
 
       const products = [];
@@ -237,8 +241,10 @@
         if (b[i]) push(b[i]);
       }
 
-      // Nothing online? Fall back to the saved German pack, which needs no network.
-      if (!products.length) {
+      // Open Food Facts' text search is thin on multi-word queries; top it up
+      // from the offline index of most-scanned products and the saved pack.
+      if (products.length < 10) {
+        try { (await LocalPack.quickSearch(q, 25)).forEach(push); } catch (_) {}
         try { (await LocalPack.search(q, 25)).forEach(push); } catch (_) {}
       }
 
@@ -302,6 +308,15 @@
       }
     }
 
+    // From the All tab, one tap carries the query over to the online search.
+    const goOnline = tab === 'all' && q.length >= 2
+      ? `<button class="btn ghost block mt12" type="button" data-go-online>${App.icon('search')}Search all products online for “${App.esc(q)}”</button>`
+      : '';
+    const wireOnline = () => {
+      const b = box.querySelector('[data-go-online]');
+      if (b) b.addEventListener('click', () => { const t = el.querySelector('[data-fstab="online"]'); if (t) t.click(); });
+    };
+
     if (!rows.length) {
       box.innerHTML = UI.emptyState(
         'search',
@@ -310,12 +325,14 @@
           : tab === 'fav' ? 'Star a food while adding it and it will show up here.'
           : tab === 'mine' ? 'Add foods that are not in the database — they stay on your device.'
           : 'Foods you log will appear here for quick re-entry.'
-      );
+      ) + goOnline;
+      wireOnline();
       return;
     }
 
     box.innerHTML = '<div class="card flush"><div class="list">' + rows.map((r, i) => rowHtml(r, i)).join('') + '</div></div>' +
-      (tab === 'online' ? onlineFooter() : '');
+      (tab === 'online' ? onlineFooter() : goOnline);
+    wireOnline();
 
     box.querySelectorAll('[data-fsrow]').forEach(btn => {
       btn.addEventListener('click', async () => {

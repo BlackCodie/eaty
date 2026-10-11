@@ -258,7 +258,9 @@
     return { food, from: 'network' };
   }
 
-  /** Text search against Open Food Facts, biased to German products. */
+  /** Text search against Open Food Facts, biased to German products.
+      (The newer search.openfoodfacts.org sends no CORS headers, so a web app
+      cannot call it; the classic endpoint allows any origin.) */
   async function search(query, opts) {
     const o = opts || {};
     const params = new URLSearchParams({

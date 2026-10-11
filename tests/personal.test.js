@@ -89,3 +89,11 @@ test('the weekly report sums up logged days, gaps and hormones', async () => {
     assert.ok(w.top.length >= 3);
   } finally { Data.entriesBetween = real; }
 });
+
+/* ---------------------------------------------------------- 2.4 */
+test('health summary names what is set, and is empty when nothing is', () => {
+  assert.strictEqual(Personal.summary(H({})), '');
+  const s = Personal.summary(H({ allergens: ['gluten', 'milk'], diet: 'vegetarian', meds: ['statin', 'iron'], avoidCaffeine: true }));
+  assert.strictEqual(s, 'Gluten, Milk · Vegetarian · No caffeine · 2 medicines');
+  assert.strictEqual(Personal.summary(H({ pregnant: true, breastfeeding: true })), 'Pregnant');
+});
